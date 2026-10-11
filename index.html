@@ -34,6 +34,11 @@ nav button.on{background:var(--acc);color:#fff;border-color:var(--acc)}
 .pill{display:inline-block;padding:4px 10px;border:1px solid var(--line);border-radius:99px;margin:2px 4px 2px 0;background:var(--bg);color:var(--fg);font-size:.9rem}
 .pill.on{background:var(--acc);color:#fff;border-color:var(--acc)}
 .hidden{display:none}
+#lock{display:none}
+body.locked #lock{display:flex;min-height:100vh;align-items:center;justify-content:center}
+body.locked main{display:none}
+.lockbox{width:100%;max-width:340px;text-align:center}
+#lock-pin{font-size:1.4rem;text-align:center;letter-spacing:.3em;margin-top:14px;padding:12px;width:100%;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--fg)}
 .trow{display:flex;gap:12px;align-items:flex-start}
 .tick{flex:0 0 28px;height:28px;border:2px solid var(--acc);border-radius:7px;background:var(--bg);color:var(--fg);margin-top:2px}
 .tbody{flex:1;min-width:0;cursor:pointer}
@@ -67,6 +72,15 @@ a.plink{color:var(--acc)}
 </style>
 </head>
 <body>
+<section id="lock">
+  <div class="lockbox">
+    <div class="bigq">Second Brain ist gesperrt</div>
+    <input type="password" id="lock-pin" inputmode="numeric" autocomplete="off" placeholder="PIN" aria-label="PIN">
+    <button class="primary" id="lock-go">Entsperren</button>
+    <div id="lock-err" class="hint" style="min-height:1.3em;margin-top:8px"></div>
+    <button class="ghost" id="lock-reset" style="margin-top:24px">PIN vergessen? App zurücksetzen</button>
+  </div>
+</section>
 <main>
 <nav>
   <button data-tab="heute" class="on">Heute</button>
@@ -146,6 +160,14 @@ a.plink{color:var(--acc)}
     <input type="password" id="set-token" autocomplete="off">
     <button class="primary" id="set-save">Speichern und testen</button>
   </div>
+  <div class="card">
+    <label class="q">PIN-Sperre</label>
+    <div class="hint" id="pin-state"></div>
+    <input type="password" id="pin-new" inputmode="numeric" autocomplete="new-password" placeholder="Neue PIN (6 Ziffern empfohlen)" style="margin-top:10px">
+    <input type="password" id="pin-new2" inputmode="numeric" autocomplete="new-password" placeholder="PIN wiederholen" style="margin-top:8px">
+    <button class="primary" id="pin-set">PIN festlegen</button>
+    <div class="row" style="margin-top:10px"><button class="ghost hidden" id="pin-lock">Jetzt sperren</button><button class="ghost hidden" id="pin-remove">PIN entfernen</button></div>
+  </div>
 </section>
 </main>
 <div id="msg"></div>
@@ -157,7 +179,7 @@ const store = {
   get(k, d){ try { return localStorage.getItem(k) ?? d } catch { return d } },
   set(k, v){ try { localStorage.setItem(k, v) } catch {} }
 };
-const cfg = () => ({repo: store.get('repo','DaStocki/second-brain'), branch: store.get('branch','main'), token: store.get('token','')});
+const cfg = () => ({repo: store.get('repo','DaStocki/second-brain'), branch: store.get('branch','main'), token: lock.get('token','')});
 
 function msg(text, kind){
   const m = $('#msg'); m.textContent = text; m.className = kind || ''; m.style.display = 'block';
@@ -287,8 +309,8 @@ const OPS = {
   obs: o => updateFile(`journal/${o.date}.md`, old => addObservation(old, o.date, o.line), `beobachtung: ${o.date}`)
 };
 const outbox = {
-  get(){ try { return JSON.parse(store.get('outbox', '[]')) } catch { return [] } },
-  set(a){ store.set('outbox', JSON.stringify(a)); updateBadge() }
+  get(){ try { return JSON.parse(lock.get('outbox', '[]')) } catch { return [] } },
+  set(a){ lock.set('outbox', JSON.stringify(a)); updateBadge() }
 };
 // Sends op; on network trouble it is queued and resent later. Returns 'sent' or 'queued'.
 async function submit(op){
@@ -297,7 +319,7 @@ async function submit(op){
 }
 let flushing = false;
 async function flushOutbox(){
-  if (flushing) return; flushing = true;
+  if (flushing || lock.locked()) return; flushing = true;
   try {
     let q = outbox.get(), sent = 0;
     while (q.length) {
@@ -313,8 +335,8 @@ const doneMsg = (r, ok) => msg(r === 'queued' ? 'Offline – lokal gespeichert, 
 
 // ---------- Check-in wizard (one question per screen, draft kept on the device) ----------
 let draft;
-function loadDraft(){ try { draft = JSON.parse(store.get('ci-draft', 'null')) } catch { draft = null } if (!draft) draft = {date: berlin().date, kurz: false, step: 0, answers: {}} }
-const saveDraft = () => store.set('ci-draft', JSON.stringify(draft));
+function loadDraft(){ try { draft = JSON.parse(lock.get('ci-draft', 'null')) } catch { draft = null } if (!draft) draft = {date: berlin().date, kurz: false, step: 0, answers: {}} }
+const saveDraft = () => lock.set('ci-draft', JSON.stringify(draft));
 function steps(){ const all = [...SCALES.map(s => ({kind:'scale', key:s[0], q:s[1], h:s[2]})), ...TEXTS.map(t => ({kind:'text', key:t[0], q:t[1]}))]; return draft.kurz ? all.filter(s => KURZ.has(s.key)) : all }
 function go(step){ draft.step = step; saveDraft(); renderCheckin() }
 function renderCheckin(){
@@ -370,7 +392,7 @@ async function saveCheckin(btn){
   btn.disabled = true;
   try {
     const r = await submit({kind:'checkin', date: draft.date, kurz: draft.kurz, answers});
-    store.set('ci-draft', 'null'); loadDraft(); renderCheckin();
+    lock.set('ci-draft', 'null'); loadDraft(); renderCheckin();
     doneMsg(r, 'Gespeichert. Gute Nacht!'); tab('heute');
   } catch(e){ msg(e.message, 'err'); btn.disabled = false }
 }
@@ -380,7 +402,7 @@ async function saveNote(){
   const date = $('#n-date').value, time = $('#n-time').value.trim() || berlin().time, text = $('#n-text').value;
   if (!text.trim()) return msg('Leere Notiz.','err');
   $('#n-save').disabled = true;
-  try { const r = await submit({kind:'note', date, time, text}); $('#n-text').value=''; store.set('n-draft',''); doneMsg(r, 'Gespeichert.'); tab('heute') }
+  try { const r = await submit({kind:'note', date, time, text}); $('#n-text').value=''; lock.set('n-draft',''); doneMsg(r, 'Gespeichert.'); tab('heute') }
   catch(e){ msg(e.message,'err') }
   $('#n-save').disabled = false;
 }
@@ -412,8 +434,14 @@ async function saveObs(){
 
 // ---------- Repo snapshot (wiki + journal), blobs cached on the device ----------
 const blobCache = {
-  get(sha){ try { return localStorage.getItem('blob:' + sha) } catch { return null } },
-  set(sha, v){ try { localStorage.setItem('blob:' + sha, v) } catch {} },
+  async get(sha){
+    let v; try { v = localStorage.getItem('blob:' + sha) } catch { return null }
+    if (v == null) return null;
+    if (!lock.enabled()) return v.startsWith('e:') ? null : v;
+    if (!lock.key || !v.startsWith('e:')) return null;
+    try { return await crypt.dec(lock.key, v.slice(2)) } catch { return null }
+  },
+  async set(sha, v){ try { localStorage.setItem('blob:' + sha, lock.enabled() ? 'e:' + await crypt.enc(lock.key, v) : v) } catch {} },
   prune(keep){ try { Object.keys(localStorage).filter(k => k.startsWith('blob:') && !keep.has(k.slice(5))).forEach(k => localStorage.removeItem(k)) } catch {} }
 };
 async function pool(items, n, fn){ const out = []; let i = 0; await Promise.all(Array.from({length: n}, async () => { while (i < items.length) { const k = i++; out[k] = await fn(items[k]) } })); return out }
@@ -427,8 +455,8 @@ function loadRepo(){
     const files = tree.tree.filter(f => f.type === 'blob' && (/^wiki\/.*\.md$/.test(f.path) || /^journal\/\d{4}-\d{2}-\d{2}\.md$/.test(f.path)));
     blobCache.prune(new Set(files.map(f => f.sha)));
     const texts = await pool(files, 8, async f => {
-      let t = blobCache.get(f.sha);
-      if (t == null) { t = b64d((await gh(`git/blobs/${f.sha}`)).content); blobCache.set(f.sha, t) }
+      let t = await blobCache.get(f.sha);
+      if (t == null) { t = b64d((await gh(`git/blobs/${f.sha}`)).content); await blobCache.set(f.sha, t) }
       return t;
     });
     repo = {files: files.map((f, i) => ({path: f.path, text: texts[i]}))};
@@ -682,9 +710,104 @@ function metricChart(rows, key, label, start, end){
   return card;
 }
 
+// ---------- PIN lock: token, drafts, outbox and cache are encrypted with a key derived from the PIN ----------
+const u8b64 = u => { let t = ''; u.forEach(c => t += String.fromCharCode(c)); return btoa(t) };
+const b64u8 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
+const crypt = {
+  async derive(pin, salt){
+    const base = await crypto.subtle.importKey('raw', new TextEncoder().encode(pin), 'PBKDF2', false, ['deriveKey']);
+    return crypto.subtle.deriveKey({name: 'PBKDF2', salt, iterations: 310000, hash: 'SHA-256'}, base, {name: 'AES-GCM', length: 256}, false, ['encrypt', 'decrypt']);
+  },
+  async enc(key, text){ const iv = crypto.getRandomValues(new Uint8Array(12)); const ct = new Uint8Array(await crypto.subtle.encrypt({name: 'AES-GCM', iv}, key, new TextEncoder().encode(text))); return u8b64(iv) + '.' + u8b64(ct) },
+  async dec(key, s){ const [iv, ct] = s.split('.').map(b64u8); return new TextDecoder().decode(await crypto.subtle.decrypt({name: 'AES-GCM', iv}, key, ct)) }
+};
+const SECURE_KEYS = ['token', 'ci-draft', 'outbox', 'n-draft'];
+const lock = {
+  key: null, mem: {},
+  enabled(){ return !!store.get('pin', '') },
+  locked(){ return this.enabled() && !this.key },
+  // Synchronous reads from memory; writes go to memory and are persisted (encrypted when a PIN is set).
+  get(k, d){ return k in this.mem ? this.mem[k] : d },
+  set(k, v){ this.mem[k] = v; this.persist(k) },
+  async persist(k){
+    const v = this.mem[k] ?? '';
+    if (this.enabled()) { if (this.key) store.set('sec:' + k, await crypt.enc(this.key, v)); try { localStorage.removeItem(k) } catch {} }
+    else { store.set(k, v); try { localStorage.removeItem('sec:' + k) } catch {} }
+  },
+  async loadAll(){
+    for (const k of SECURE_KEYS) {
+      if (this.enabled()) { const c = store.get('sec:' + k, ''); if (c) this.mem[k] = await crypt.dec(this.key, c) }
+      else { const v = store.get(k, null); if (v != null) this.mem[k] = v }
+    }
+  },
+  async unlock(pin){
+    const p = JSON.parse(store.get('pin'));
+    const key = await crypt.derive(pin, b64u8(p.salt));
+    await crypt.dec(key, p.check);              // throws on a wrong PIN
+    this.key = key; await this.loadAll();
+  },
+  async setPin(pin){
+    const salt = crypto.getRandomValues(new Uint8Array(16));
+    const key = await crypt.derive(pin, salt);
+    store.set('pin', JSON.stringify({salt: u8b64(salt), check: await crypt.enc(key, 'ok')}));
+    this.key = key; clearBlobCache();
+    for (const k of SECURE_KEYS) if (k in this.mem) await this.persist(k);
+  },
+  async removePin(){
+    try { localStorage.removeItem('pin') } catch {}
+    this.key = null; clearBlobCache();
+    for (const k of SECURE_KEYS) if (k in this.mem) await this.persist(k);
+  },
+  lockNow(){ if (!this.enabled()) return; this.key = null; this.mem = {}; repo = null; showLock() }
+};
+function clearBlobCache(){ try { Object.keys(localStorage).filter(k => k.startsWith('blob:')).forEach(k => localStorage.removeItem(k)) } catch {} }
+function showLock(){
+  document.body.classList.add('locked');
+  $('#lock-pin').value = ''; $('#lock-err').textContent = '';
+  setTimeout(() => $('#lock-pin').focus(), 50);
+}
+async function tryUnlock(){
+  const until = +store.get('pin-until', '0');
+  if (Date.now() < until) { $('#lock-err').textContent = `Zu viele Versuche – bitte ${Math.ceil((until - Date.now()) / 1000)} s warten.`; return }
+  const btn = $('#lock-go'); btn.disabled = true; $('#lock-err').textContent = 'Prüfe …';
+  try {
+    await lock.unlock($('#lock-pin').value);
+    store.set('pin-fails', '0');
+    document.body.classList.remove('locked'); $('#lock-err').textContent = '';
+    startApp();
+  } catch {
+    const fails = +store.get('pin-fails', '0') + 1; store.set('pin-fails', String(fails));
+    if (fails >= 5) store.set('pin-until', String(Date.now() + 30000 * 2 ** (fails - 5)));
+    $('#lock-err').textContent = fails >= 5 ? `Falsche PIN. Nächster Versuch in ${30 * 2 ** (fails - 5)} s.` : 'Falsche PIN.';
+    $('#lock-pin').value = '';
+  }
+  btn.disabled = false;
+}
+function resetApp(){
+  if (!confirm('App zurücksetzen? Token, PIN, Entwürfe und noch nicht gesendete Einträge auf diesem Gerät werden gelöscht. Im Repo ändert sich nichts.')) return;
+  try { localStorage.clear() } catch {}
+  location.reload();
+}
+function renderPinCard(){
+  const on = lock.enabled();
+  $('#pin-state').textContent = on ? 'PIN ist aktiv. Token, Entwürfe, Warteschlange und Zwischenspeicher sind verschlüsselt; die App sperrt sich nach 5 Minuten im Hintergrund.' : 'Keine PIN. Der Token liegt unverschlüsselt im Browser-Speicher.';
+  $('#pin-set').textContent = on ? 'PIN ändern' : 'PIN festlegen';
+  $('#pin-remove').classList.toggle('hidden', !on); $('#pin-lock').classList.toggle('hidden', !on);
+}
+async function setPinFromForm(){
+  const a = $('#pin-new').value, b = $('#pin-new2').value;
+  if (!/^\d{4,12}$/.test(a)) return msg('PIN: 4 bis 12 Ziffern (6 empfohlen).', 'err');
+  if (a !== b) return msg('Die beiden PINs stimmen nicht überein.', 'err');
+  if (!cfg().token) return msg('Erst den Token eintragen und speichern.', 'err');
+  $('#pin-set').disabled = true;
+  try { await lock.setPin(a); $('#pin-new').value = $('#pin-new2').value = ''; renderPinCard(); msg('PIN gesetzt.', 'ok') } catch(e){ msg(e.message, 'err') }
+  $('#pin-set').disabled = false;
+}
+let hiddenAt = 0;
+
 // ---------- Settings & tabs ----------
 async function saveSettings(){
-  store.set('repo',$('#set-repo').value.trim()); store.set('branch',$('#set-branch').value.trim()); store.set('vault',$('#set-vault').value.trim() || 'second-brain'); store.set('token',$('#set-token').value.trim());
+  store.set('repo',$('#set-repo').value.trim()); store.set('branch',$('#set-branch').value.trim()); store.set('vault',$('#set-vault').value.trim() || 'second-brain'); lock.set('token',$('#set-token').value.trim());
   repo = null;
   try { const r = await gh(''); msg(`Verbunden mit ${r.full_name}${r.private?' (privat)':''}.`,'ok'); flushOutbox() } catch(e){ msg('Test fehlgeschlagen: '+e.message,'err') }
 }
@@ -698,23 +821,41 @@ function tab(name){
   if (name === 'checkin') renderCheckin();
   if (name === 'offen') showOffen();
   if (name === 'verlauf') showVerlauf();
-  if (name === 'note') { const n = berlin(); $('#n-date').value = n.date; $('#n-time').value = n.time; $('#n-text').value = store.get('n-draft', ''); setTimeout(() => $('#n-text').focus(), 50) }
+  if (name === 'note') { const n = berlin(); $('#n-date').value = n.date; $('#n-time').value = n.time; $('#n-text').value = lock.get('n-draft', ''); setTimeout(() => $('#n-text').focus(), 50) }
   window.scrollTo(0, 0);
 }
 $$('nav button').forEach(b => b.onclick = () => tab(b.dataset.tab));
 $$('[data-go]').forEach(b => b.onclick = () => tab(b.dataset.go));
 $('#ci-date').onchange = e => { draft.date = e.target.value; saveDraft(); renderCheckin() };
 $('#ci-kurz').onchange = e => { draft.kurz = e.target.checked; draft.step = 0; saveDraft(); renderCheckin() };
-$('#ci-reset').onclick = () => { if (confirm('Entwurf verwerfen?')) { store.set('ci-draft', 'null'); loadDraft(); renderCheckin() } };
-$('#n-text').oninput = e => store.set('n-draft', e.target.value);
+$('#ci-reset').onclick = () => { if (confirm('Entwurf verwerfen?')) { lock.set('ci-draft', 'null'); loadDraft(); renderCheckin() } };
+$('#n-text').oninput = e => lock.set('n-draft', e.target.value);
 $('#o-reload').onclick = () => showOffen(true);
 $('#n-save').onclick = saveNote; $('#s-save').onclick = saveObs; $('#set-save').onclick = saveSettings;
-$('#set-repo').value = cfg().repo; $('#set-branch').value = cfg().branch; $('#set-vault').value = store.get('vault', 'second-brain'); $('#set-token').value = cfg().token;
+$('#set-repo').value = cfg().repo; $('#set-branch').value = cfg().branch; $('#set-vault').value = store.get('vault', 'second-brain');
 window.addEventListener('online', flushOutbox);
-document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { flushOutbox(); if (current === 'heute') { repo = null; renderHeute() } } });
-loadDraft(); initObs();
-tab(cfg().token ? 'heute' : 'settings');
-flushOutbox();
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') { hiddenAt = Date.now(); return }
+  if (lock.enabled() && lock.key && hiddenAt && Date.now() - hiddenAt > 5 * 60 * 1000) return lock.lockNow();
+  if (lock.locked()) return;
+  flushOutbox(); if (current === 'heute') { repo = null; renderHeute() }
+});
+$('#lock-go').onclick = tryUnlock;
+$('#lock-pin').onkeydown = e => { if (e.key === 'Enter') tryUnlock() };
+$('#lock-reset').onclick = resetApp;
+$('#pin-set').onclick = setPinFromForm;
+$('#pin-remove').onclick = async () => { if (confirm('PIN entfernen? Der Token liegt dann wieder unverschlüsselt im Browser.')) { await lock.removePin(); renderPinCard(); msg('PIN entfernt.', 'ok') } };
+$('#pin-lock').onclick = () => lock.lockNow();
+initObs();
+let started = false;
+function startApp(){
+  loadDraft();
+  $('#set-token').value = cfg().token;
+  renderPinCard();
+  if (!started) { started = true; tab(cfg().token ? 'heute' : 'settings') } else tab(current);
+  flushOutbox();
+}
+if (lock.enabled()) showLock(); else lock.loadAll().then(startApp);
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(()=>{});
 </script>
 </body>
