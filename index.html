@@ -624,6 +624,15 @@ html[data-theme="clinical"]{background:var(--ink-0)}
 [data-theme="clinical"] .mic.on{color:#fff;background:var(--signal-deep);animation:none;box-shadow:inset 0 0 1px var(--glow),inset 0 0 10px var(--glow-soft),0 0 18px var(--glow-soft)}
 [data-theme="clinical"] .miclive{font:400 12px var(--mono);color:var(--signal)}
 
+/* task due dates: tap to set/change */
+.duepick{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;border:0;padding:0}
+button.due{display:inline;padding:0;border:0;background:none;cursor:pointer;text-decoration:underline dotted;text-underline-offset:3px}
+button.due.add{color:var(--ink-3);text-decoration:none;font-weight:400}
+button.due.add:hover{color:var(--lit)}
+.dueclear{margin-left:4px;padding:0 4px;border:0;background:none;cursor:pointer;color:var(--ink-3);font:inherit;line-height:1}
+.dueclear:hover{color:var(--err)}
+.tbody .hint{position:relative}
+
 .hidden{display:none!important}
 </style>
 </head>
@@ -1100,7 +1109,8 @@ function parseFm(text){
   return {tags, title};
 }
 const AREA_TAGS = ['gesundheit','arbeit','finanzen','wohnen','familie','vertraege','auto-mobilitaet','persoenlich'];
-function plain(t){ return t.replace(/~~(.*?)~~/g,'$1').replace(/\*\*(.*?)\*\*/g,'$1').replace(/\[\[([^\]|]+)(\|([^\]]+))?\]\]/g,(_,a,__,b)=>b||a).replace(/`([^`]*)`/g,'$1').trim() }
+const DUE_RE = /\s*📅\s*(\d{4}-\d{2}-\d{2})/;
+function plain(t){ return t.replace(DUE_RE, '').replace(/~~(.*?)~~/g,'$1').replace(/\*\*(.*?)\*\*/g,'$1').replace(/\[\[([^\]|]+)(\|([^\]]+))?\]\]/g,(_,a,__,b)=>b||a).replace(/`([^`]*)`/g,'$1').trim() }
 function parseTasks(path, text, today){
   const {tags, title} = parseFm(text);
   const area = tags.find(t => AREA_TAGS.includes(t)) || 'ohne Bereich';
@@ -1112,12 +1122,21 @@ function parseTasks(path, text, today){
     const indent = m[1].length;
     while (stack.length && stack[stack.length-1].indent >= indent) stack.pop();
     const parent = stack[stack.length-1];
-    const due = findDue(m[3], today) || (parent && parent.due) || null;
-    const t = {path, page, title: title || page, area, line, lineNo: idx, indent, done: m[2] !== ' ', text: plain(m[3]), due, parent: parent ? parent.text : null};
+    const exp = m[3].match(DUE_RE);
+    const due = exp ? exp[1] : findDue(m[3], today) || (parent && parent.due) || null;
+    const t = {path, page, title: title || page, area, line, lineNo: idx, indent, done: m[2] !== ' ', text: plain(m[3]), due, explicit: !!exp, parent: parent ? parent.text : null};
     stack.push(t);
     if (!t.done) out.push(t);
   });
   return out;
+}
+// Sets (iso) or removes (null) the explicit due date of a task line: "… 📅 YYYY-MM-DD" (Obsidian Tasks convention).
+function setDueLine(text, task, iso, today){
+  const lines = text.split('\n');
+  let i = lines[task.lineNo] === task.line ? task.lineNo : lines.indexOf(task.line);
+  if (i < 0) throw new Error('Aufgabe wurde inzwischen geändert – bitte neu laden.');
+  lines[i] = lines[i].replace(new RegExp(DUE_RE.source, 'g'), '').replace(/\s+$/, '') + (iso ? ` 📅 ${iso}` : '');
+  return lines.join('\n').replace(/^(---\n[\s\S]*?\n---)/, fm => fm.replace(/^last-updated:.*$/m, `last-updated: ${today}`));
 }
 function tickLine(text, task, today){
   const lines = text.split('\n');
@@ -1177,13 +1196,29 @@ function taskCard(t, late, after){
   const txt = el('div', 'ttext', t.text);
   body.appendChild(txt);
   const meta = el('div', 'hint');
-  if (t.due) { meta.appendChild(el('span', 'due' + (late ? ' late' : ''), `${wd(t.due)} ${fmtDate(t.due)}`)); meta.append(' · ') }
+  const picker = el('input', 'duepick'); picker.type = 'date'; picker.value = t.due || ''; picker.tabIndex = -1; picker.setAttribute('aria-hidden', 'true');
+  picker.onclick = e => e.stopPropagation();
+  picker.onchange = () => { if (picker.value && picker.value !== t.due) setDue(t, picker.value, after) };
+  const open = e => { e.stopPropagation(); try { picker.showPicker() } catch { picker.focus(); picker.click() } };
+  const dbtn = el('button', 'due' + (late ? ' late' : '') + (t.due ? '' : ' add'), t.due ? `${wd(t.due)} ${fmtDate(t.due)}` : '+ Datum');
+  dbtn.type = 'button'; dbtn.title = t.due ? 'Datum ändern' : 'Datum setzen'; dbtn.setAttribute('aria-label', dbtn.title + (t.due ? ` (${fmtDate(t.due)})` : '')); dbtn.onclick = open;
+  meta.append(picker, dbtn);
+  if (t.explicit) { const x = el('button', 'dueclear', '×'); x.type = 'button'; x.title = 'Datum entfernen'; x.setAttribute('aria-label', 'Datum entfernen'); x.onclick = e => { e.stopPropagation(); setDue(t, null, after) }; meta.append(x) }
+  meta.append(' · ');
   const a = el('a', 'plink', t.page); a.href = obsidianUrl(t.path); a.onclick = e => e.stopPropagation();
   meta.append(a, ` · ${t.area}`);
   body.appendChild(meta);
   body.onclick = () => txt.classList.toggle('open');
   row.append(cb, body); card.appendChild(row);
   return card;
+}
+async function setDue(t, iso, after){
+  const today = berlin().date;
+  try {
+    await updateFile(t.path, old => { if (old == null) throw new Error('Seite nicht gefunden.'); return setDueLine(old, t, iso, today) }, `offen: Fälligkeit ${iso ? 'gesetzt' : 'entfernt'} (${t.page})`);
+    await updateFile('wiki/log.md', old => (old || '').replace(/\s*$/, '\n') + `- ${today} — Aufgabe auf [[${t.page}]] in der App ${iso ? 'auf ' + fmtDate(iso) + ' terminiert' : 'ohne festes Datum gesetzt'}: ${t.text.slice(0, 100)}${t.text.length > 100 ? ' …' : ''}\n`, `log: Fälligkeit (${t.page})`);
+    repo = null; msg(iso ? `Fällig am ${wd(iso)} ${fmtDate(iso)}.` : 'Datum entfernt.', 'ok'); after && after();
+  } catch(e){ msg(e.offline ? 'Offline – Datum ändern geht nur mit Netz.' : e.message, 'err') }
 }
 async function tickTask(t, btn, after){
   if (!confirm(`Abhaken?\n\n${t.text.slice(0, 200)}`)) return;
