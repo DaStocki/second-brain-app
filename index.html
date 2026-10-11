@@ -42,32 +42,62 @@ nav button.on{background:var(--acc);color:#fff;border-color:var(--acc)}
 .due{font-weight:600;color:var(--fg)}.due.late{color:var(--err)}
 #o-filter{margin:6px 0}
 .ghost{background:none;border:1px solid var(--line);color:var(--fg);border-radius:8px;padding:6px 10px;font:inherit;font-size:.85rem}
+
+.prog{height:4px;background:var(--line);border-radius:2px;margin:6px 0 14px}.prog>div{height:100%;background:var(--acc);border-radius:2px}
+.bigq{font-size:1.25rem;font-weight:600;margin:4px 0 8px}
+.scale.big{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin:14px 0 8px}
+.scale.big button{padding:16px 0;font-size:1.2rem;min-width:0}
+.ghost.wide{width:100%;padding:10px}
+.sumrow{display:flex;justify-content:space-between;gap:12px;padding:10px 2px;border-bottom:1px solid var(--line);cursor:pointer}
+.sumrow span:last-child{text-align:right;overflow-wrap:anywhere}
+.status{font-weight:600;padding:4px 0}.status.ok{color:var(--ok)}.status.todo{color:var(--fg)}
+.quick{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0}
+.quick button{padding:14px;border:1px solid var(--line);background:var(--card);color:var(--fg);border-radius:12px;font:inherit;font-weight:600}
+#outbox{border-color:var(--acc)}
+a.plink{color:var(--acc)}
+.chart svg{width:100%;height:auto;display:block;touch-action:pan-y;margin-top:6px}
+.chart .grid{stroke:var(--line);stroke-width:1}
+.chart .axis{fill:var(--mut);font-size:11px}
+.chart .avg{fill:none;stroke:var(--acc);stroke-width:2;stroke-linejoin:round;stroke-linecap:round}
+.chart .dot{fill:var(--acc);fill-opacity:.45;stroke:var(--card);stroke-width:2}
+.chart .cross{stroke:var(--mut);stroke-width:1;stroke-dasharray:3 3}
+.chart .cross.hidden{display:none}
+.chead{display:flex;align-items:baseline;gap:4px}.chead strong{color:var(--fg)}.cstat{font-size:.9rem;color:var(--fg);margin-top:2px}
+.ccap{min-height:1.3em;margin-top:4px}
 </style>
 </head>
 <body>
 <main>
 <nav>
-  <button data-tab="checkin" class="on">Check-in</button>
-  <button data-tab="note">Notiz</button>
-  <button data-tab="symptom">Beobachtung</button>
+  <button data-tab="heute" class="on">Heute</button>
+  <button data-tab="checkin">Check-in</button>
   <button data-tab="offen">Offen</button>
-  <button data-tab="settings">⚙︎</button>
+  <button data-tab="verlauf">Verlauf</button>
+  <button data-tab="settings" aria-label="Einstellungen">⚙︎</button>
 </nav>
 
-<section id="tab-checkin">
-  <h1>Abend-Check-in</h1>
+<section id="tab-heute">
+  <h1 id="h-date">Heute</h1>
+  <div id="outbox" class="card hint hidden"></div>
+  <div id="h-status" class="card"></div>
+  <div class="quick"><button data-go="note">+ Notiz</button><button data-go="symptom">+ Beobachtung</button></div>
+  <div id="h-due"></div>
+  <div id="h-notes"></div>
+</section>
+
+<section id="tab-checkin" class="hidden">
   <div class="card row">
-    <input type="date" id="ci-date">
-    <label><input type="checkbox" id="ci-kurz"> kurz (4 Fragen)</label>
+    <input type="date" id="ci-date" aria-label="Datum">
+    <label style="flex:0 0 auto"><input type="checkbox" id="ci-kurz"> kurz</label>
   </div>
-  <div id="ci-form"></div>
-  <button class="primary" id="ci-save">Speichern</button>
+  <div id="ci-step" class="card"></div>
+  <button class="ghost hidden" id="ci-reset">Entwurf verwerfen</button>
 </section>
 
 <section id="tab-note" class="hidden">
   <h1>Notiz ins Journal</h1>
-  <div class="card row"><input type="date" id="n-date"><input type="text" id="n-time" placeholder="HH:MM"></div>
-  <div class="card"><textarea id="n-text" placeholder="Frei schreiben, ohne Schema"></textarea></div>
+  <div class="card row"><input type="date" id="n-date" aria-label="Datum"><input type="text" id="n-time" placeholder="HH:MM" aria-label="Uhrzeit"></div>
+  <div class="card"><textarea id="n-text" rows="5" placeholder="Frei schreiben, ohne Schema"></textarea></div>
   <button class="primary" id="n-save">Speichern</button>
 </section>
 
@@ -97,13 +127,21 @@ nav button.on{background:var(--acc);color:#fff;border-color:var(--acc)}
   <div id="o-list" class="hint">Noch nicht geladen.</div>
 </section>
 
+<section id="tab-verlauf" class="hidden">
+  <h1>Verlauf</h1>
+  <div id="v-range"></div>
+  <div id="v-charts" class="hint"></div>
+</section>
+
 <section id="tab-settings" class="hidden">
   <h1>Einstellungen</h1>
   <div class="card">
     <label class="q">Repo <span class="hint">owner/name</span></label>
-    <input type="text" id="set-repo" value="DaStocki/second-brain">
+    <input type="text" id="set-repo">
     <label class="q" style="margin-top:10px">Branch</label>
-    <input type="text" id="set-branch" value="main">
+    <input type="text" id="set-branch">
+    <label class="q" style="margin-top:10px">Obsidian-Vault <span class="hint">Name des Vaults in Obsidian, für die Links</span></label>
+    <input type="text" id="set-vault">
     <label class="q" style="margin-top:10px">GitHub-Token <span class="hint">fine-grained, nur dieses Repo, Contents: Read and write; bleibt nur auf diesem Gerät</span></label>
     <input type="password" id="set-token" autocomplete="off">
     <button class="primary" id="set-save">Speichern und testen</button>
@@ -139,7 +177,7 @@ async function gh(path, opts={}){
   let r;
   try {
     r = await fetch(`https://api.github.com/repos/${c.repo}${path ? "/" + path : ""}`, {...opts, headers:{Authorization:`Bearer ${c.token}`,Accept:'application/vnd.github+json',...(opts.headers||{})}});
-  } catch(e){ throw new Error(`api.github.com nicht erreichbar (offline oder von der Umgebung blockiert): ${e.message}`) }
+  } catch(e){ const err = new Error(`api.github.com nicht erreichbar (offline?): ${e.message}`); err.offline = true; throw err }
   if (r.status === 404 && opts.allow404) return null;
   if (!r.ok) { const e = new Error(`GitHub ${r.status}`); e.status = r.status; e.body = await r.text().catch(()=>''); throw e }
   return r.json();
@@ -208,90 +246,142 @@ function addObservation(text, date, line){
 
 // ---------- Check-in ----------
 const SCALES = [
-  ['stimmung','Wie war deine Stimmung heute?','1 = sehr schlecht, 10 = sehr gut'],
-  ['stress','Wie angespannt oder gestresst warst du?','1 = gar nicht, 10 = extrem'],
-  ['energie','Wie viel Energie hattest du?','1 = völlig erschöpft / Fatigue, 10 = voller Energie'],
-  ['beschwerden','Wie stark waren körperliche Beschwerden (MS-Symptome, Schmerz)?','1 = keine, 10 = sehr stark'],
-  ['fokus','Wie gut konntest du dich auf das konzentrieren, was du vorhattest?','1 = gar nicht, 10 = sehr gut'],
-  ['arbeitsbelastung','Wie belastend war die Arbeit heute?','1 = gar nicht, 10 = überfordert'],
-  ['soziale_batterie','Wie voll ist deine soziale Batterie jetzt am Abend?','1 = leer, 10 = voll'],
-  ['reizueberflutung','Wie stark war die Reizüberflutung heute?','1 = gar nicht, 10 = sehr stark'],
-  ['verbundenheit','Wie verbunden hast du dich mit anderen Menschen gefühlt?','1 = gar nicht, 10 = sehr']
+  ['stimmung','Wie war deine Stimmung heute?','1 = sehr schlecht, 10 = sehr gut','Stimmung'],
+  ['stress','Wie angespannt oder gestresst warst du?','1 = gar nicht, 10 = extrem','Stress'],
+  ['energie','Wie viel Energie hattest du?','1 = völlig erschöpft / Fatigue, 10 = voller Energie','Energie'],
+  ['beschwerden','Wie stark waren körperliche Beschwerden (MS-Symptome, Schmerz)?','1 = keine, 10 = sehr stark','Beschwerden'],
+  ['fokus','Wie gut konntest du dich auf das konzentrieren, was du vorhattest?','1 = gar nicht, 10 = sehr gut','Fokus'],
+  ['arbeitsbelastung','Wie belastend war die Arbeit heute?','1 = gar nicht, 10 = überfordert','Arbeit'],
+  ['soziale_batterie','Wie voll ist deine soziale Batterie jetzt am Abend?','1 = leer, 10 = voll','Soz. Batterie'],
+  ['reizueberflutung','Wie stark war die Reizüberflutung heute?','1 = gar nicht, 10 = sehr stark','Reize'],
+  ['verbundenheit','Wie verbunden hast du dich mit anderen Menschen gefühlt?','1 = gar nicht, 10 = sehr','Verbunden']
 ];
+const HIGH_BAD = new Set(['stress','beschwerden','arbeitsbelastung','reizueberflutung']);
 const TEXTS = [
   ['ereignis','Was war das wichtigste Ereignis heute?','Wichtigstes Ereignis'],
   ['energiekosten','Was hat dich heute Energie gekostet?','Energie gekostet'],
   ['gutgetan','Was hat dir heute gutgetan?','Gutgetan'],
-  ['dankbar','Gibt es etwas, wofür du dankbar bist oder worauf du stolz bist? (optional)','Dankbar / Stolz']
+  ['dankbar','Gibt es etwas, wofür du dankbar bist oder worauf du stolz bist?','Dankbar / Stolz']
 ];
 const KURZ = new Set(['stimmung','energie','beschwerden','ereignis']);
-const ci = {};
-function buildScale(container, onPick, value){
-  container.innerHTML = '';
-  for (let n=1; n<=10; n++){
-    const b = document.createElement('button'); b.textContent = n; b.type = 'button';
-    b.onclick = () => { const was = b.classList.contains('on'); [...container.children].forEach(x=>x.classList.remove('on')); if(!was){b.classList.add('on'); onPick(n)} else onPick(null) };
-    container.appendChild(b);
-  }
-}
-function renderCheckin(){
-  const kurz = $('#ci-kurz').checked, f = $('#ci-form'); f.innerHTML = '';
-  let k = 0; const total = kurz ? 4 : 13;
-  SCALES.forEach(([key,q,h]) => {
-    if (kurz && !KURZ.has(key)) return;
-    k++;
-    const d = document.createElement('div'); d.className = 'card';
-    d.innerHTML = `<label class="q">${k}/${total} ${q}<br><span class="hint">${h}</span></label><div class="scale"></div>`;
-    f.appendChild(d); buildScale(d.querySelector('.scale'), v => ci[key] = v);
-    if (key==='arbeitsbelastung') d.insertAdjacentHTML('beforeend','<div class="hint">Nicht angetippt = übersprungen (z. B. freier Tag).</div>');
-  });
-  TEXTS.forEach(([key,q]) => {
-    if (kurz && !KURZ.has(key)) return;
-    k++;
-    const d = document.createElement('div'); d.className = 'card';
-    d.innerHTML = `<label class="q">${k}/${total} ${q}</label><textarea data-k="${key}"></textarea>`;
-    d.querySelector('textarea').value = ci[key] || '';
-    d.querySelector('textarea').oninput = e => ci[key] = e.target.value;
-    f.appendChild(d);
-  });
-}
-function applyCheckin(old, date, kurz){
+function applyCheckin(old, date, kurz, answers){
   let f = old == null ? newFile(date) : splitFm(old);
   if (!f.fm) f = {fm:[`datum: ${date}`,'tags: [daily]'], body:old};
-  if (/^# Check-in/m.test(f.body) || f.fm.some(l=>l.startsWith('typ: checkin'))) throw new Error(`Für ${date} gibt es schon einen Check-in.`);
+  if (/^# Check-in/m.test(f.body) || f.fm.some(l=>l.startsWith('typ: checkin'))) { const e = new Error(`Für ${date} gibt es schon einen Check-in.`); e.permanent = true; throw e }
   ensureDaily(f.fm);
   setFm(f.fm,'typ','checkin');
   if (kurz) setFm(f.fm,'variante','kurz');
-  SCALES.forEach(([key]) => setFm(f.fm, key, ci[key] ?? ''));
-  const sections = TEXTS.map(([key,,title]) => `## ${title}\n${(ci[key]||'').trim()}\n`).join('\n');
+  SCALES.forEach(([key]) => setFm(f.fm, key, answers[key] ?? ''));
+  const sections = TEXTS.map(([key,,title]) => `## ${title}\n${(answers[key]||'').trim()}\n`).join('\n');
   const block = `# Check-in ${date}\n\n${sections}\n`;
   let body = f.body.replace(/^\n+/, '');
   const n = body.search(/^## (Beobachtungen|Notizen)$/m);
-  body = n >= 0 ? '\n' + block + body.slice(n) : '\n' + block;
+  body = n >= 0 ? '\n' + block + body.slice(n) : '\n' + block.replace(/\n+$/, '\n');
   return join({fm:f.fm, body});
 }
-async function saveCheckin(){
-  const date = $('#ci-date').value, kurz = $('#ci-kurz').checked;
-  const hasAny = SCALES.some(([k])=>ci[k]) || TEXTS.some(([k])=>(ci[k]||'').trim());
-  if (!date || !hasAny) return msg('Nichts auszufüllen.','err');
-  $('#ci-save').disabled = true;
+
+// ---------- Outbox: saves survive closing the app and missing network ----------
+const OPS = {
+  checkin: o => updateFile(`journal/${o.date}.md`, old => applyCheckin(old, o.date, o.kurz, o.answers), `checkin: ${o.date}`),
+  note: o => updateFile(`journal/${o.date}.md`, old => addToNotes(old, o.date, o.time, o.text), `journal: ${o.date}`),
+  obs: o => updateFile(`journal/${o.date}.md`, old => addObservation(old, o.date, o.line), `beobachtung: ${o.date}`)
+};
+const outbox = {
+  get(){ try { return JSON.parse(store.get('outbox', '[]')) } catch { return [] } },
+  set(a){ store.set('outbox', JSON.stringify(a)); updateBadge() }
+};
+// Sends op; on network trouble it is queued and resent later. Returns 'sent' or 'queued'.
+async function submit(op){
+  try { await OPS[op.kind](op); repo = null; return 'sent' }
+  catch(e){ if (e.offline) { outbox.set([...outbox.get(), op]); return 'queued' } throw e }
+}
+let flushing = false;
+async function flushOutbox(){
+  if (flushing) return; flushing = true;
   try {
-    await updateFile(`journal/${date}.md`, old => applyCheckin(old, date, kurz), `checkin: ${date}`);
-    Object.keys(ci).forEach(k=>delete ci[k]); renderCheckin();
-    msg('Gespeichert. Gute Nacht! (Ingest ins Wiki macht Mnemo.)','ok');
-  } catch(e){ msg(e.message + (e.body?` – ${e.body.slice(0,120)}`:''),'err') }
-  $('#ci-save').disabled = false;
+    let q = outbox.get(), sent = 0;
+    while (q.length) {
+      try { await OPS[q[0].kind](q[0]); sent++ }
+      catch(e){ if (e.offline) break; msg(`Gespeicherter Eintrag nicht gesendet: ${e.message}`, 'err'); if (!e.permanent) break }
+      q = q.slice(1); outbox.set(q);
+    }
+    if (sent) { repo = null; msg(`${sent} gespeicherte${sent>1?'':'r'} Eintr${sent>1?'äge':'ag'} gesendet.`, 'ok'); if (current === 'heute') renderHeute() }
+  } finally { flushing = false }
+}
+function updateBadge(){ const n = outbox.get().length; const b = $('#outbox'); if (!b) return; b.textContent = n ? `${n} Eintr${n>1?'äge warten':'ag wartet'} auf Verbindung – wird automatisch gesendet.` : ''; b.classList.toggle('hidden', !n) }
+const doneMsg = (r, ok) => msg(r === 'queued' ? 'Offline – lokal gespeichert, wird gesendet, sobald Netz da ist.' : ok, 'ok');
+
+// ---------- Check-in wizard (one question per screen, draft kept on the device) ----------
+let draft;
+function loadDraft(){ try { draft = JSON.parse(store.get('ci-draft', 'null')) } catch { draft = null } if (!draft) draft = {date: berlin().date, kurz: false, step: 0, answers: {}} }
+const saveDraft = () => store.set('ci-draft', JSON.stringify(draft));
+function steps(){ const all = [...SCALES.map(s => ({kind:'scale', key:s[0], q:s[1], h:s[2]})), ...TEXTS.map(t => ({kind:'text', key:t[0], q:t[1]}))]; return draft.kurz ? all.filter(s => KURZ.has(s.key)) : all }
+function go(step){ draft.step = step; saveDraft(); renderCheckin() }
+function renderCheckin(){
+  $('#ci-date').value = draft.date; $('#ci-kurz').checked = draft.kurz;
+  const st = steps(), n = st.length, box = $('#ci-step'); box.innerHTML = '';
+  const hasAnswers = Object.values(draft.answers).some(v => v != null && v !== '');
+  $('#ci-reset').classList.toggle('hidden', !hasAnswers);
+  if (draft.step >= n) return renderSummary(st);
+  const s = st[draft.step];
+  box.appendChild(el('div', 'hint', `${draft.step + 1}/${n}`));
+  const prog = el('div', 'prog'); const bar = el('div'); bar.style.width = `${100 * draft.step / n}%`; prog.appendChild(bar); box.appendChild(prog);
+  box.appendChild(el('div', 'bigq', s.q.replace(' heute', draft.date === berlin().date ? ' heute' : '')));
+  if (s.kind === 'scale') {
+    box.appendChild(el('div', 'hint', s.h));
+    const sc = el('div', 'scale big');
+    for (let v = 1; v <= 10; v++) {
+      const b = el('button', draft.answers[s.key] === v ? 'on' : '', String(v)); b.type = 'button';
+      b.onclick = () => { draft.answers[s.key] = v; sc.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); saveDraft(); setTimeout(() => go(draft.step + 1), 180) };
+      sc.appendChild(b);
+    }
+    box.appendChild(sc);
+    const skip = el('button', 'ghost wide', '– überspringen'); skip.type = 'button';
+    skip.onclick = () => { draft.answers[s.key] = null; go(draft.step + 1) };
+    box.appendChild(skip);
+  } else {
+    if (s.key === 'dankbar') box.appendChild(el('div', 'hint', 'optional – leer lassen ist völlig in Ordnung'));
+    const ta = el('textarea'); ta.value = draft.answers[s.key] || ''; ta.rows = 3;
+    ta.oninput = () => { draft.answers[s.key] = ta.value; saveDraft() };
+    box.appendChild(ta);
+    const next = el('button', 'primary', draft.step + 1 === n ? 'Fertig' : 'Weiter'); next.type = 'button';
+    next.onclick = () => go(draft.step + 1);
+    box.appendChild(next);
+    setTimeout(() => ta.focus(), 50);
+  }
+  if (draft.step > 0) { const back = el('button', 'ghost', '← Zurück'); back.type = 'button'; back.style.marginTop = '14px'; back.onclick = () => go(draft.step - 1); box.appendChild(back) }
+}
+function renderSummary(st){
+  const box = $('#ci-step');
+  box.appendChild(el('div', 'bigq', 'Zusammenfassung'));
+  box.appendChild(el('div', 'hint', 'Tippe auf eine Zeile, um sie zu ändern.'));
+  st.forEach((s, i) => {
+    const v = draft.answers[s.key];
+    const label = s.kind === 'scale' ? SCALES.find(x => x[0] === s.key)[3] : TEXTS.find(x => x[0] === s.key)[2];
+    const r = el('div', 'sumrow'); r.append(el('span', 'hint', label), el('span', null, v == null || v === '' ? '–' : String(v)));
+    r.onclick = () => go(i); box.appendChild(r);
+  });
+  const save = el('button', 'primary', 'Speichern'); save.type = 'button'; save.onclick = () => saveCheckin(save); box.appendChild(save);
+  const back = el('button', 'ghost', '← Zurück'); back.type = 'button'; back.style.marginTop = '14px'; back.onclick = () => go(st.length - 1); box.appendChild(back);
+}
+async function saveCheckin(btn){
+  const answers = {}; steps().forEach(s => { const v = draft.answers[s.key]; if (v != null && v !== '') answers[s.key] = v });
+  if (!Object.keys(answers).length) return msg('Nichts ausgefüllt.', 'err');
+  btn.disabled = true;
+  try {
+    const r = await submit({kind:'checkin', date: draft.date, kurz: draft.kurz, answers});
+    store.set('ci-draft', 'null'); loadDraft(); renderCheckin();
+    doneMsg(r, 'Gespeichert. Gute Nacht!'); tab('heute');
+  } catch(e){ msg(e.message, 'err'); btn.disabled = false }
 }
 
 // ---------- Notiz ----------
 async function saveNote(){
-  const date = $('#n-date').value, time = $('#n-time').value.trim(), text = $('#n-text').value;
+  const date = $('#n-date').value, time = $('#n-time').value.trim() || berlin().time, text = $('#n-text').value;
   if (!text.trim()) return msg('Leere Notiz.','err');
   $('#n-save').disabled = true;
-  try {
-    await updateFile(`journal/${date}.md`, old => addToNotes(old, date, time, text), `journal: ${date}`);
-    $('#n-text').value=''; msg('Gespeichert.','ok');
-  } catch(e){ msg(e.message,'err') }
+  try { const r = await submit({kind:'note', date, time, text}); $('#n-text').value=''; store.set('n-draft',''); doneMsg(r, 'Gespeichert.'); tab('heute') }
+  catch(e){ msg(e.message,'err') }
   $('#n-save').disabled = false;
 }
 
@@ -300,12 +390,13 @@ const AREAS = ['ADHS','Autismus','PTBS/kPTBS','Depression','Körper','unklar'];
 const obs = {art:'Belastung', areas:new Set(), stark:null};
 function initObs(){
   const a = $('#s-areas');
-  AREAS.forEach(x => { const p = document.createElement('span'); p.className='pill'; p.textContent=x; p.onclick=()=>{ obs.areas.has(x)?obs.areas.delete(x):obs.areas.add(x); p.classList.toggle('on') }; a.appendChild(p) });
+  AREAS.forEach(x => { const p = el('span', 'pill', x); p.onclick=()=>{ obs.areas.has(x)?obs.areas.delete(x):obs.areas.add(x); p.classList.toggle('on') }; a.appendChild(p) });
   $$('[data-art]').forEach(p => p.onclick = () => { obs.art = p.dataset.art; $$('[data-art]').forEach(q=>q.classList.toggle('on', q===p)) });
-  buildScale($('#s-scale'), v => obs.stark = v);
+  const sc = $('#s-scale');
+  for (let v = 1; v <= 10; v++) { const b = el('button', '', String(v)); b.type = 'button'; b.onclick = () => { const was = obs.stark === v; obs.stark = was ? null : v; sc.querySelectorAll('button').forEach(x => x.classList.toggle('on', !was && x === b)) }; sc.appendChild(b) }
 }
 async function saveObs(){
-  const date = berlin().date, time = berlin().time;
+  const {date, time} = berlin();
   const was = $('#s-text').value.trim();
   if (!was) return msg('Was ist passiert?','err');
   const area = obs.areas.size ? [...obs.areas].join(' + ') : 'unklar';
@@ -314,13 +405,46 @@ async function saveObs(){
   if (obs.stark) line += `; Stärke ${obs.stark}/10`;
   if (half) line += `; half: ${half}`;
   $('#s-save').disabled = true;
-  try {
-    await updateFile(`journal/${date}.md`, old => addObservation(old, date, line), `beobachtung: ${date}`);
-    $('#s-text').value=$('#s-kw').value=$('#s-half').value=''; msg('Gespeichert (nur Journal).','ok');
-  } catch(e){ msg(e.message,'err') }
+  try { const r = await submit({kind:'obs', date, line}); $('#s-text').value=$('#s-kw').value=$('#s-half').value=''; doneMsg(r, 'Gespeichert (nur Journal).'); tab('heute') }
+  catch(e){ msg(e.message,'err') }
   $('#s-save').disabled = false;
 }
 
+// ---------- Repo snapshot (wiki + journal), blobs cached on the device ----------
+const blobCache = {
+  get(sha){ try { return localStorage.getItem('blob:' + sha) } catch { return null } },
+  set(sha, v){ try { localStorage.setItem('blob:' + sha, v) } catch {} },
+  prune(keep){ try { Object.keys(localStorage).filter(k => k.startsWith('blob:') && !keep.has(k.slice(5))).forEach(k => localStorage.removeItem(k)) } catch {} }
+};
+async function pool(items, n, fn){ const out = []; let i = 0; await Promise.all(Array.from({length: n}, async () => { while (i < items.length) { const k = i++; out[k] = await fn(items[k]) } })); return out }
+let repo = null, repoLoading = null;
+function loadRepo(){
+  if (repo) return Promise.resolve(repo);
+  if (repoLoading) return repoLoading;
+  repoLoading = (async () => {
+    const c = cfg();
+    const tree = await gh(`git/trees/${encodeURIComponent(c.branch)}?recursive=1`);
+    const files = tree.tree.filter(f => f.type === 'blob' && (/^wiki\/.*\.md$/.test(f.path) || /^journal\/\d{4}-\d{2}-\d{2}\.md$/.test(f.path)));
+    blobCache.prune(new Set(files.map(f => f.sha)));
+    const texts = await pool(files, 8, async f => {
+      let t = blobCache.get(f.sha);
+      if (t == null) { t = b64d((await gh(`git/blobs/${f.sha}`)).content); blobCache.set(f.sha, t) }
+      return t;
+    });
+    repo = {files: files.map((f, i) => ({path: f.path, text: texts[i]}))};
+    return repo;
+  })().finally(() => { repoLoading = null });
+  return repoLoading;
+}
+function allTasks(r){ const today = berlin().date; return r.files.filter(f => f.path.startsWith('wiki/') && !/^wiki\/(log|index)\.md$/.test(f.path)).flatMap(f => parseTasks(f.path, f.text, today)) }
+function journalFiles(r){ return r.files.filter(f => f.path.startsWith('journal/')).map(f => ({date: f.path.slice(8, 18), text: f.text})).sort((a, b) => a.date.localeCompare(b.date)) }
+function fmValues(text){ const m = text.match(/^---\n([\s\S]*?)\n---/); const o = {}; if (m) m[1].split('\n').forEach(l => { const k = l.match(/^([a-z_]+):\s*(.*)$/); if (k) o[k[1]] = k[2].trim() }); return o }
+const addDays = (iso, n) => { const d = new Date(iso + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10) };
+const WD = ['So','Mo','Di','Mi','Do','Fr','Sa'];
+const wd = iso => WD[new Date(iso + 'T00:00:00Z').getUTCDay()];
+function fmtDate(d){ return `${d.slice(8,10)}.${d.slice(5,7)}.${d.slice(0,4)}` }
+function el(tag, cls, text){ const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e }
+const obsidianUrl = path => `obsidian://open?vault=${encodeURIComponent(store.get('vault', 'second-brain'))}&file=${encodeURIComponent(path.replace(/\.md$/, ''))}`;
 // ---------- Offen: parsing ----------
 const MONTHS = {januar:1,februar:2,'märz':3,maerz:3,april:4,mai:5,juni:6,juli:7,august:8,september:9,oktober:10,november:11,dezember:12};
 const KW_DUE = /(bis|spätestens|am|um den|vor dem|ab|zum|termin|nächster termin|merken:?|den)\s*\**\s*$/i;
@@ -406,102 +530,191 @@ function tickLine(text, task, today){
   return out;
 }
 
-// ---------- Offen: loading and UI ----------
-const blobCache = {
-  get(sha){ try { return localStorage.getItem('blob:' + sha) } catch { return null } },
-  set(sha, v){ try { localStorage.setItem('blob:' + sha, v) } catch {} },
-  prune(keep){ try { Object.keys(localStorage).filter(k => k.startsWith('blob:') && !keep.has(k.slice(5))).forEach(k => localStorage.removeItem(k)) } catch {} }
-};
-async function pool(items, n, fn){ const out = []; let i = 0; await Promise.all(Array.from({length: n}, async () => { while (i < items.length) { const k = i++; out[k] = await fn(items[k]) } })); return out }
-let offen = {tasks: [], filter: 'alle', loaded: false};
-async function loadOffen(){
-  const box = $('#o-list'); box.textContent = 'Lade Aufgaben …';
-  try {
-    const c = cfg(), today = berlin().date;
-    const tree = await gh(`git/trees/${encodeURIComponent(c.branch)}?recursive=1`);
-    const files = tree.tree.filter(f => f.type === 'blob' && /^wiki\/.*\.md$/.test(f.path) && !/^wiki\/(log|index)\.md$/.test(f.path));
-    blobCache.prune(new Set(files.map(f => f.sha)));
-    const texts = await pool(files, 8, async f => {
-      let t = blobCache.get(f.sha);
-      if (t == null) { t = b64d((await gh(`git/blobs/${f.sha}`)).content); blobCache.set(f.sha, t) }
-      return t;
-    });
-    offen.tasks = files.flatMap((f, i) => parseTasks(f.path, texts[i], today));
-    offen.loaded = true; renderOffen();
-  } catch(e){ box.textContent = 'Fehler: ' + e.message }
+// ---------- Offen ----------
+let offenFilter = 'alle';
+async function showOffen(force){
+  const box = $('#o-list');
+  if (force) repo = null;
+  if (!repo) box.textContent = 'Lade Aufgaben …';
+  try { renderOffen(allTasks(await loadRepo())) } catch(e){ box.textContent = 'Fehler: ' + e.message }
 }
-function fmtDate(d){ return `${d.slice(8,10)}.${d.slice(5,7)}.${d.slice(0,4)}` }
-function el(tag, cls, text){ const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e }
-function renderOffen(){
-  const today = berlin().date, soon = new Date(today + 'T00:00:00Z'); soon.setUTCDate(soon.getUTCDate() + 14);
-  const soonIso = soon.toISOString().slice(0, 10);
-  const areas = [...new Set(offen.tasks.map(t => t.area))].sort();
-  const fbar = $('#o-filter'); fbar.innerHTML = '';
-  ['alle', ...areas].forEach(a => { const p = el('span', 'pill' + (offen.filter === a ? ' on' : ''), a); p.onclick = () => { offen.filter = a; renderOffen() }; fbar.appendChild(p) });
-  const list = offen.tasks.filter(t => offen.filter === 'alle' || t.area === offen.filter);
-  const groups = [
+function groupTasks(list, today){
+  const soon = addDays(today, 14);
+  return [
     ['Überfällig', list.filter(t => t.due && t.due < today)],
-    ['Nächste 14 Tage', list.filter(t => t.due && t.due >= today && t.due <= soonIso)],
-    ['Später', list.filter(t => t.due && t.due > soonIso)],
+    ['Nächste 14 Tage', list.filter(t => t.due && t.due >= today && t.due <= soon)],
+    ['Später', list.filter(t => t.due && t.due > soon)],
     ['Ohne Datum', list.filter(t => !t.due)]
-  ];
+  ].map(([n, items]) => [n, items.sort((a, b) => (a.due || '').localeCompare(b.due || '') || a.area.localeCompare(b.area) || a.page.localeCompare(b.page) || a.lineNo - b.lineNo)]);
+}
+function renderOffen(tasks){
+  const today = berlin().date;
+  const areas = [...new Set(tasks.map(t => t.area))].sort();
+  const fbar = $('#o-filter'); fbar.innerHTML = '';
+  ['alle', ...areas].forEach(a => { const p = el('span', 'pill' + (offenFilter === a ? ' on' : ''), a); p.onclick = () => { offenFilter = a; renderOffen(tasks) }; fbar.appendChild(p) });
+  const list = tasks.filter(t => offenFilter === 'alle' || t.area === offenFilter);
+  const groups = groupTasks(list, today);
   const box = $('#o-list'); box.innerHTML = '';
   const overdue = groups[0][1].length;
   box.appendChild(el('div', 'hint', `${list.length} offene Aufgaben auf ${new Set(list.map(t => t.page)).size} Seiten${overdue ? `, davon ${overdue} überfällig` : ''}`));
   for (const [name, items] of groups) {
     if (!items.length) continue;
-    items.sort((a, b) => (a.due || '').localeCompare(b.due || '') || a.area.localeCompare(b.area) || a.page.localeCompare(b.page) || a.lineNo - b.lineNo);
     box.appendChild(el('h2', null, `${name} (${items.length})`));
-    for (const t of items) box.appendChild(taskCard(t, name === 'Überfällig'));
+    for (const t of items) box.appendChild(taskCard(t, name === 'Überfällig', () => showOffen()));
   }
 }
-function taskCard(t, late){
+function taskCard(t, late, after){
   const card = el('div', 'card task');
   const row = el('div', 'trow');
   const cb = el('button', 'tick', ''); cb.type = 'button'; cb.setAttribute('aria-label', 'Abhaken');
-  cb.onclick = () => tickTask(t, cb);
+  cb.onclick = () => tickTask(t, cb, after);
   const body = el('div', 'tbody');
   if (t.parent) body.appendChild(el('div', 'hint', '↳ ' + t.parent.slice(0, 60)));
   const txt = el('div', 'ttext', t.text);
   body.appendChild(txt);
   const meta = el('div', 'hint');
-  if (t.due) { const d = el('span', 'due' + (late ? ' late' : ''), fmtDate(t.due)); meta.appendChild(d); meta.append(' · ') }
-  meta.append(`${t.page} · ${t.area}`);
+  if (t.due) { meta.appendChild(el('span', 'due' + (late ? ' late' : ''), `${wd(t.due)} ${fmtDate(t.due)}`)); meta.append(' · ') }
+  const a = el('a', 'plink', t.page); a.href = obsidianUrl(t.path); a.onclick = e => e.stopPropagation();
+  meta.append(a, ` · ${t.area}`);
   body.appendChild(meta);
   body.onclick = () => txt.classList.toggle('open');
   row.append(cb, body); card.appendChild(row);
   return card;
 }
-async function tickTask(t, btn){
+async function tickTask(t, btn, after){
   if (!confirm(`Abhaken?\n\n${t.text.slice(0, 200)}`)) return;
   btn.disabled = true; btn.textContent = '…';
   const today = berlin().date;
   try {
     await updateFile(t.path, old => { if (old == null) throw new Error('Seite nicht gefunden.'); return tickLine(old, t, today) }, `offen: Aufgabe abgehakt (${t.page})`);
     await updateFile('wiki/log.md', old => (old || '').replace(/\s*$/, '\n') + `- ${today} — Aufgabe auf [[${t.page}]] in der App abgehakt: ${t.text.slice(0, 120)}${t.text.length > 120 ? ' …' : ''}\n`, `log: Aufgabe abgehakt (${t.page})`);
-    offen.tasks = offen.tasks.filter(x => x !== t); renderOffen(); msg('Abgehakt.', 'ok');
-  } catch(e){ btn.disabled = false; btn.textContent = ''; msg(e.message, 'err') }
+    repo = null; msg('Abgehakt.', 'ok'); after && after();
+  } catch(e){ btn.disabled = false; btn.textContent = ''; msg(e.offline ? 'Offline – Abhaken geht nur mit Netz.' : e.message, 'err') }
+}
+
+// ---------- Heute ----------
+async function renderHeute(){
+  const {date: today} = berlin();
+  $('#h-date').textContent = `${wd(today)}, ${fmtDate(today)}`;
+  updateBadge();
+  const st = $('#h-status'), due = $('#h-due'), notes = $('#h-notes');
+  if (!cfg().token) { st.textContent = 'Noch kein Token – bitte unter ⚙︎ eintragen.'; return }
+  if (!repo) st.textContent = 'Lade …';
+  let r;
+  try { r = await loadRepo() } catch(e){ st.textContent = e.offline ? 'Offline – Übersicht nicht verfügbar. Notizen und Check-in werden trotzdem gespeichert.' : 'Fehler: ' + e.message; return }
+  const js = journalFiles(r), todayFile = js.find(j => j.date === today);
+  const done = todayFile && fmValues(todayFile.text).typ === 'checkin';
+  const queued = outbox.get().some(o => o.kind === 'checkin' && o.date === today);
+  st.innerHTML = '';
+  const line = el('div', 'status ' + (done || queued ? 'ok' : 'todo'), done ? '✓ Check-in für heute ist gespeichert' : queued ? '✓ Check-in gespeichert, wartet auf Netz' : 'Check-in für heute steht noch aus');
+  st.appendChild(line);
+  if (!done && !queued) { const b = el('button', 'primary', 'Check-in starten'); b.onclick = () => tab('checkin'); st.appendChild(b) }
+  const tasks = allTasks(r).filter(t => t.due && t.due <= addDays(today, 7)).sort((a, b) => a.due.localeCompare(b.due));
+  due.innerHTML = '';
+  due.appendChild(el('h2', null, `Fällig bis ${fmtDate(addDays(today, 7)).slice(0, 6)} (${tasks.length})`));
+  if (!tasks.length) due.appendChild(el('div', 'hint', 'Nichts fällig in den nächsten 7 Tagen.'));
+  tasks.forEach(t => due.appendChild(taskCard(t, t.due < today, () => renderHeute())));
+  notes.innerHTML = '';
+  notes.appendChild(el('h2', null, 'Letzte Notizen'));
+  const recent = [];
+  js.filter(j => j.date >= addDays(today, -3)).forEach(j => {
+    const sec = j.text.split(/^## Notizen\s*$/m)[1]; if (!sec) return;
+    sec.split(/^### /m).slice(1).forEach(chunk => { const [head, ...rest] = chunk.split('\n'); const body = rest.join('\n').split(/^## /m)[0].trim(); if (body) recent.push({date: j.date, time: head.trim(), body}) });
+  });
+  recent.sort((a, b) => (b.date + b.time).localeCompare(a.date + a.time));
+  if (!recent.length) notes.appendChild(el('div', 'hint', 'Keine Notizen in den letzten Tagen.'));
+  recent.slice(0, 5).forEach(n => { const c = el('div', 'card'); c.append(el('div', 'hint', `${wd(n.date)} ${fmtDate(n.date).slice(0, 6)} · ${n.time}`), el('div', 'ttext', n.body)); c.onclick = () => c.lastChild.classList.toggle('open'); notes.appendChild(c) });
+}
+
+// ---------- Verlauf ----------
+let verlaufRange = 30;
+async function showVerlauf(){
+  const box = $('#v-charts');
+  if (!repo) box.textContent = 'Lade …';
+  try { renderVerlauf(journalFiles(await loadRepo())) } catch(e){ box.textContent = e.offline ? 'Offline – Verlauf nicht verfügbar.' : 'Fehler: ' + e.message }
+}
+function renderVerlauf(js){
+  const rows = js.map(j => ({date: j.date, v: fmValues(j.text)})).filter(r => r.v.typ === 'checkin');
+  const bar = $('#v-range'); bar.innerHTML = '';
+  [[14, '14 Tage'], [30, '30 Tage'], [0, 'alle']].forEach(([n, l]) => { const p = el('span', 'pill' + (verlaufRange === n ? ' on' : ''), l); p.onclick = () => { verlaufRange = n; renderVerlauf(js) }; bar.appendChild(p) });
+  const box = $('#v-charts'); box.innerHTML = '';
+  if (!rows.length) { box.textContent = 'Noch keine Check-ins.'; return }
+  const today = berlin().date, last = rows[rows.length - 1].date;
+  const end = last > today ? last : today;
+  const start = verlaufRange ? addDays(end, -(verlaufRange - 1)) : rows[0].date;
+  box.appendChild(el('div', 'hint', `${rows.filter(r => r.date >= start).length} Check-ins · Punkte = Tageswert, Linie = Schnitt der letzten 7 Tage`));
+  SCALES.forEach(([key,,, label]) => box.appendChild(metricChart(rows, key, label, start, end)));
+}
+function metricChart(rows, key, label, start, end){
+  const pts = rows.map(r => ({date: r.date, y: r.v[key] === '' || r.v[key] == null ? null : +r.v[key]})).filter(p => p.y != null && !isNaN(p.y));
+  const avgAt = d => { const w = pts.filter(p => p.date <= d && p.date > addDays(d, -7)); return w.length ? w.reduce((s, p) => s + p.y, 0) / w.length : null };
+  const shown = pts.filter(p => p.date >= start && p.date <= end);
+  const card = el('div', 'card chart');
+  const head = el('div', 'chead');
+  const lastP = pts[pts.length - 1], a7 = avgAt(end);
+  head.append(el('strong', null, label), el('span', 'hint', HIGH_BAD.has(key) ? ' (hoch = belastend)' : ''));
+  const stat = el('div', 'cstat'); stat.textContent = lastP ? `zuletzt ${lastP.y} · Ø7 ${a7 == null ? '–' : a7.toFixed(1).replace('.', ',')}` : 'keine Werte';
+  card.append(head, stat);
+  const days = []; for (let d = start; d <= end; d = addDays(d, 1)) days.push(d);
+  const W = 340, H = 150, L = 20, R = 6, T = 8, B = 18, n = days.length;
+  const x = i => L + (n === 1 ? (W - L - R) / 2 : i * (W - L - R) / (n - 1)), y = v => T + (10 - v) * (H - T - B) / 9;
+  const NS = 'http://www.w3.org/2000/svg', svg = document.createElementNS(NS, 'svg');
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`); svg.setAttribute('role', 'img'); svg.setAttribute('aria-label', `${label}, Verlauf`);
+  const mk = (tag, attrs) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); svg.appendChild(e); return e };
+  [1, 5, 10].forEach(v => { mk('line', {x1: L, x2: W - R, y1: y(v), y2: y(v), class: 'grid'}); mk('text', {x: L - 6, y: y(v) + 4, class: 'axis', 'text-anchor': 'end'}).textContent = v });
+  const idx = Object.fromEntries(days.map((d, i) => [d, i]));
+  [0, n - 1].forEach(i => mk('text', {x: x(i), y: H - 4, class: 'axis', 'text-anchor': i ? 'end' : 'start'}).textContent = fmtDate(days[i]).slice(0, 6));
+  let path = '', pen = false;
+  days.forEach((d, i) => { const a = pts.some(p => p.date <= d && p.date > addDays(d, -7)) ? avgAt(d) : null; if (a == null) { pen = false; return } path += `${pen ? 'L' : 'M'}${x(i).toFixed(1)},${y(a).toFixed(1)}`; pen = true });
+  if (path) mk('path', {d: path, class: 'avg'});
+  shown.forEach(p => mk('circle', {cx: x(idx[p.date]), cy: y(p.y), r: 4, class: 'dot'}));
+  const cross = mk('line', {x1: 0, x2: 0, y1: T, y2: H - B, class: 'cross hidden'});
+  const cap = el('div', 'hint ccap', 'Tippe in das Diagramm für einzelne Tage.');
+  const pick = ev => {
+    const rect = svg.getBoundingClientRect(); const px = (ev.clientX - rect.left) / rect.width * W;
+    const i = Math.max(0, Math.min(n - 1, Math.round((px - L) / ((W - L - R) / Math.max(1, n - 1)))));
+    const d = days[i], p = pts.find(q => q.date === d), a = avgAt(d);
+    cross.setAttribute('x1', x(i)); cross.setAttribute('x2', x(i)); cross.classList.remove('hidden');
+    cap.textContent = `${wd(d)} ${fmtDate(d).slice(0, 6)}: ${p ? p.y : 'kein Wert'}${a != null ? ` · Ø7 ${a.toFixed(1).replace('.', ',')}` : ''}`;
+  };
+  svg.addEventListener('pointerdown', pick); svg.addEventListener('pointermove', e => { if (e.buttons || e.pointerType === 'mouse') pick(e) });
+  card.append(svg, cap);
+  return card;
 }
 
 // ---------- Settings & tabs ----------
 async function saveSettings(){
-  store.set('repo',$('#set-repo').value.trim()); store.set('branch',$('#set-branch').value.trim()); store.set('token',$('#set-token').value.trim());
-  try { const r = await gh(''); msg(`Verbunden mit ${r.full_name}${r.private?' (privat)':''}.`,'ok') } catch(e){ msg('Test fehlgeschlagen: '+e.message,'err') }
+  store.set('repo',$('#set-repo').value.trim()); store.set('branch',$('#set-branch').value.trim()); store.set('vault',$('#set-vault').value.trim() || 'second-brain'); store.set('token',$('#set-token').value.trim());
+  repo = null;
+  try { const r = await gh(''); msg(`Verbunden mit ${r.full_name}${r.private?' (privat)':''}.`,'ok'); flushOutbox() } catch(e){ msg('Test fehlgeschlagen: '+e.message,'err') }
 }
+let current = 'heute';
 function tab(name){
-  $$('nav button').forEach(b => b.classList.toggle('on', b.dataset.tab===name));
-  ['checkin','note','symptom','offen','settings'].forEach(t => $('#tab-'+t).classList.toggle('hidden', t!==name));
-  if (name === 'offen' && !offen.loaded) loadOffen();
+  current = name;
+  const navName = name === 'note' || name === 'symptom' ? 'heute' : name;
+  $$('nav button').forEach(b => b.classList.toggle('on', b.dataset.tab === navName));
+  ['heute','checkin','note','symptom','offen','verlauf','settings'].forEach(t => $('#tab-'+t).classList.toggle('hidden', t !== name));
+  if (name === 'heute') renderHeute();
+  if (name === 'checkin') renderCheckin();
+  if (name === 'offen') showOffen();
+  if (name === 'verlauf') showVerlauf();
+  if (name === 'note') { const n = berlin(); $('#n-date').value = n.date; $('#n-time').value = n.time; $('#n-text').value = store.get('n-draft', ''); setTimeout(() => $('#n-text').focus(), 50) }
+  window.scrollTo(0, 0);
 }
 $$('nav button').forEach(b => b.onclick = () => tab(b.dataset.tab));
-$('#ci-kurz').onchange = renderCheckin;
-$('#o-reload').onclick = loadOffen;
-$('#ci-save').onclick = saveCheckin; $('#n-save').onclick = saveNote; $('#s-save').onclick = saveObs; $('#set-save').onclick = saveSettings;
-const now = berlin();
-$('#ci-date').value = now.date; $('#n-date').value = now.date; $('#n-time').value = now.time;
-$('#set-repo').value = cfg().repo; $('#set-branch').value = cfg().branch; $('#set-token').value = cfg().token;
-if (!cfg().token) tab('settings');
-initObs(); renderCheckin();
+$$('[data-go]').forEach(b => b.onclick = () => tab(b.dataset.go));
+$('#ci-date').onchange = e => { draft.date = e.target.value; saveDraft(); renderCheckin() };
+$('#ci-kurz').onchange = e => { draft.kurz = e.target.checked; draft.step = 0; saveDraft(); renderCheckin() };
+$('#ci-reset').onclick = () => { if (confirm('Entwurf verwerfen?')) { store.set('ci-draft', 'null'); loadDraft(); renderCheckin() } };
+$('#n-text').oninput = e => store.set('n-draft', e.target.value);
+$('#o-reload').onclick = () => showOffen(true);
+$('#n-save').onclick = saveNote; $('#s-save').onclick = saveObs; $('#set-save').onclick = saveSettings;
+$('#set-repo').value = cfg().repo; $('#set-branch').value = cfg().branch; $('#set-vault').value = store.get('vault', 'second-brain'); $('#set-token').value = cfg().token;
+window.addEventListener('online', flushOutbox);
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { flushOutbox(); if (current === 'heute') { repo = null; renderHeute() } } });
+loadDraft(); initObs();
+tab(cfg().token ? 'heute' : 'settings');
+flushOutbox();
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(()=>{});
 </script>
 </body>
