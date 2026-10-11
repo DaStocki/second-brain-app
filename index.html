@@ -26,7 +26,7 @@ textarea{min-height:64px}
 button.primary{background:var(--acc);color:#fff;border:0;border-radius:10px;padding:12px 18px;font-size:1rem;width:100%;margin-top:10px}
 button.primary:disabled{opacity:.5}
 nav{display:flex;gap:6px;position:sticky;top:0;background:var(--bg);padding:10px 0;z-index:2}
-nav button{flex:1;padding:10px;border:1px solid var(--line);background:var(--card);color:var(--fg);border-radius:10px}
+nav button{flex:1 1 auto;padding:10px 6px;font-size:.9rem;border:1px solid var(--line);background:var(--card);color:var(--fg);border-radius:10px}
 nav button.on{background:var(--acc);color:#fff;border-color:var(--acc)}
 #msg{position:fixed;left:16px;right:16px;bottom:16px;max-width:608px;margin:auto;padding:12px 14px;border-radius:10px;background:var(--card);border:1px solid var(--line);display:none}
 #msg.ok{border-color:var(--ok)}#msg.err{border-color:var(--err)}
@@ -34,6 +34,14 @@ nav button.on{background:var(--acc);color:#fff;border-color:var(--acc)}
 .pill{display:inline-block;padding:4px 10px;border:1px solid var(--line);border-radius:99px;margin:2px 4px 2px 0;background:var(--bg);color:var(--fg);font-size:.9rem}
 .pill.on{background:var(--acc);color:#fff;border-color:var(--acc)}
 .hidden{display:none}
+.trow{display:flex;gap:12px;align-items:flex-start}
+.tick{flex:0 0 28px;height:28px;border:2px solid var(--acc);border-radius:7px;background:var(--bg);color:var(--fg);margin-top:2px}
+.tbody{flex:1;min-width:0;cursor:pointer}
+.ttext{overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow-wrap:anywhere}
+.ttext.open{display:block}
+.due{font-weight:600;color:var(--fg)}.due.late{color:var(--err)}
+#o-filter{margin:6px 0}
+.ghost{background:none;border:1px solid var(--line);color:var(--fg);border-radius:8px;padding:6px 10px;font:inherit;font-size:.85rem}
 </style>
 </head>
 <body>
@@ -42,6 +50,7 @@ nav button.on{background:var(--acc);color:#fff;border-color:var(--acc)}
   <button data-tab="checkin" class="on">Check-in</button>
   <button data-tab="note">Notiz</button>
   <button data-tab="symptom">Beobachtung</button>
+  <button data-tab="offen">Offen</button>
   <button data-tab="settings">⚙︎</button>
 </nav>
 
@@ -80,6 +89,12 @@ nav button.on{background:var(--acc);color:#fff;border-color:var(--acc)}
     <div class="hint" style="margin-top:8px">PTBS/kPTBS: nur festhalten, dass etwas war – keine Inhalte.</div>
   </div>
   <button class="primary" id="s-save">Speichern</button>
+</section>
+
+<section id="tab-offen" class="hidden">
+  <div class="row"><h1>Offene Aufgaben</h1><button class="ghost" id="o-reload" style="flex:0 0 auto">Neu laden</button></div>
+  <div id="o-filter"></div>
+  <div id="o-list" class="hint">Noch nicht geladen.</div>
 </section>
 
 <section id="tab-settings" class="hidden">
@@ -306,6 +321,168 @@ async function saveObs(){
   $('#s-save').disabled = false;
 }
 
+// ---------- Offen: parsing ----------
+const MONTHS = {januar:1,februar:2,'märz':3,maerz:3,april:4,mai:5,juni:6,juli:7,august:8,september:9,oktober:10,november:11,dezember:12};
+const KW_DUE = /(bis|spätestens|am|um den|vor dem|ab|zum|termin|nächster termin|merken:?|den)\s*\**\s*$/i;
+const KW_PAST = /(gültig|zwischen|nachgefragt|gesendet|geschickt|vom|seit|angefordert|bestätigt|stand|stammt|zuletzt|erledigt|angabe von mir|beantragt|endet am)[^.;]{0,40}$/i;
+function iso(y,m,d){ return `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}` }
+function nextOcc(m, d, today){ const y = +today.slice(0,4); const c = iso(y,m,d); return c >= today ? c : iso(y+1,m,d) }
+function boldRanges(t){ const r=[]; const re=/\*\*([\s\S]*?)\*\*/g; let m; while((m=re.exec(t))) r.push([m.index, m.index+m[0].length]); return r }
+function findDue(raw, today){
+  const text = raw.replace(/`[^`]*`/g, x => ' '.repeat(x.length));
+  const cands = [];
+  const add = (i, date, base) => cands.push({i, date, base});
+  let m;
+  const reFull = /\b(\d{1,2})\.(\d{1,2})\.(\d{4})\b/g;
+  while ((m = reFull.exec(text))) add(m.index, iso(+m[3],+m[2],+m[1]), 0);
+  const reShort = /\b(\d{1,2})\.(\d{1,2})\.(?!\d)/g;
+  while ((m = reShort.exec(text))) add(m.index, nextOcc(+m[2],+m[1],today), 0);
+  const reIso = /\b(\d{4})-(\d{2})-(\d{2})\b/g;
+  while ((m = reIso.exec(text))) add(m.index, iso(+m[1],+m[2],+m[3]), 0);
+  const reMon = new RegExp(`\\b(Anfang|Mitte|Ende)?\\s*(${Object.keys(MONTHS).join('|')})(?![a-zäöüß])\\s*(\\d{4})?`, 'gi');
+  while ((m = reMon.exec(text))) {
+    const mo = MONTHS[m[2].toLowerCase()];
+    const day = {anfang:1, mitte:11, ende:25}[(m[1]||'').toLowerCase()] || 1;
+    const date = m[3] ? iso(+m[3], mo, day) : nextOcc(mo, day, today);
+    add(m.index, date, m[1] ? 1 : 0);
+  }
+  const reMY = /\b(ab|bis)\s+(\d{1,2})\/(\d{4})\b/gi;
+  while ((m = reMY.exec(text))) add(m.index, iso(+m[3], +m[2], 1), 1);
+  if (!cands.length) return null;
+  const bold = boldRanges(text);
+  const t0 = new Date(today + 'T00:00:00Z'); t0.setUTCDate(t0.getUTCDate() - 365);
+  const oldest = t0.toISOString().slice(0, 10);
+  let best = null;
+  for (const c of cands) {
+    const before = text.slice(Math.max(0, c.i - 45), c.i);
+    let s = c.base;
+    if (bold.some(([a,b]) => c.i >= a && c.i < b)) s += 2;
+    if (KW_DUE.test(before)) s += 2;
+    if (KW_PAST.test(before)) s -= 5;
+    if (c.date < oldest) continue;
+    if (!best || s > best.s) best = {s, date: c.date};
+  }
+  return best && best.s > 0 ? best.date : null;
+}
+function parseFm(text){
+  const m = text.match(/^---\n([\s\S]*?)\n---/);
+  const fm = m ? m[1] : '';
+  const tags = (fm.match(/^tags:\s*\[([^\]]*)\]/m) || [,''])[1].split(',').map(s => s.trim()).filter(Boolean);
+  const title = (fm.match(/^title:\s*"?(.*?)"?\s*$/m) || [,''])[1];
+  return {tags, title};
+}
+const AREA_TAGS = ['gesundheit','arbeit','finanzen','wohnen','familie','vertraege','auto-mobilitaet','persoenlich'];
+function plain(t){ return t.replace(/~~(.*?)~~/g,'$1').replace(/\*\*(.*?)\*\*/g,'$1').replace(/\[\[([^\]|]+)(\|([^\]]+))?\]\]/g,(_,a,__,b)=>b||a).replace(/`([^`]*)`/g,'$1').trim() }
+function parseTasks(path, text, today){
+  const {tags, title} = parseFm(text);
+  const area = tags.find(t => AREA_TAGS.includes(t)) || 'ohne Bereich';
+  const page = path.split('/').pop().replace(/\.md$/, '');
+  const out = [], stack = [];
+  text.split('\n').forEach((line, idx) => {
+    const m = line.match(/^(\s*)- \[( |x|X)\] (.*)$/);
+    if (!m) return;
+    const indent = m[1].length;
+    while (stack.length && stack[stack.length-1].indent >= indent) stack.pop();
+    const parent = stack[stack.length-1];
+    const due = findDue(m[3], today) || (parent && parent.due) || null;
+    const t = {path, page, title: title || page, area, line, lineNo: idx, indent, done: m[2] !== ' ', text: plain(m[3]), due, parent: parent ? parent.text : null};
+    stack.push(t);
+    if (!t.done) out.push(t);
+  });
+  return out;
+}
+function tickLine(text, task, today){
+  const lines = text.split('\n');
+  let i = lines[task.lineNo] === task.line ? task.lineNo : lines.indexOf(task.line);
+  if (i < 0) throw new Error('Aufgabe wurde inzwischen geändert – bitte neu laden.');
+  lines[i] = lines[i].replace('- [ ] ', '- [x] ');
+  let out = lines.join('\n');
+  const stillOpen = /^\s*- \[ \] /m.test(out);
+  out = out.replace(/^(---\n[\s\S]*?\n---)/, fm => {
+    let f = fm.replace(/^last-updated:.*$/m, `last-updated: ${today}`);
+    if (!stillOpen) f = f.replace(/^tags:\s*\[([^\]]*)\]/m, (_, l) => `tags: [${l.split(',').map(s=>s.trim()).filter(s => s && s !== 'offen').join(', ')}]`);
+    return f;
+  });
+  return out;
+}
+
+// ---------- Offen: loading and UI ----------
+const blobCache = {
+  get(sha){ try { return localStorage.getItem('blob:' + sha) } catch { return null } },
+  set(sha, v){ try { localStorage.setItem('blob:' + sha, v) } catch {} },
+  prune(keep){ try { Object.keys(localStorage).filter(k => k.startsWith('blob:') && !keep.has(k.slice(5))).forEach(k => localStorage.removeItem(k)) } catch {} }
+};
+async function pool(items, n, fn){ const out = []; let i = 0; await Promise.all(Array.from({length: n}, async () => { while (i < items.length) { const k = i++; out[k] = await fn(items[k]) } })); return out }
+let offen = {tasks: [], filter: 'alle', loaded: false};
+async function loadOffen(){
+  const box = $('#o-list'); box.textContent = 'Lade Aufgaben …';
+  try {
+    const c = cfg(), today = berlin().date;
+    const tree = await gh(`git/trees/${encodeURIComponent(c.branch)}?recursive=1`);
+    const files = tree.tree.filter(f => f.type === 'blob' && /^wiki\/.*\.md$/.test(f.path) && !/^wiki\/(log|index)\.md$/.test(f.path));
+    blobCache.prune(new Set(files.map(f => f.sha)));
+    const texts = await pool(files, 8, async f => {
+      let t = blobCache.get(f.sha);
+      if (t == null) { t = b64d((await gh(`git/blobs/${f.sha}`)).content); blobCache.set(f.sha, t) }
+      return t;
+    });
+    offen.tasks = files.flatMap((f, i) => parseTasks(f.path, texts[i], today));
+    offen.loaded = true; renderOffen();
+  } catch(e){ box.textContent = 'Fehler: ' + e.message }
+}
+function fmtDate(d){ return `${d.slice(8,10)}.${d.slice(5,7)}.${d.slice(0,4)}` }
+function el(tag, cls, text){ const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e }
+function renderOffen(){
+  const today = berlin().date, soon = new Date(today + 'T00:00:00Z'); soon.setUTCDate(soon.getUTCDate() + 14);
+  const soonIso = soon.toISOString().slice(0, 10);
+  const areas = [...new Set(offen.tasks.map(t => t.area))].sort();
+  const fbar = $('#o-filter'); fbar.innerHTML = '';
+  ['alle', ...areas].forEach(a => { const p = el('span', 'pill' + (offen.filter === a ? ' on' : ''), a); p.onclick = () => { offen.filter = a; renderOffen() }; fbar.appendChild(p) });
+  const list = offen.tasks.filter(t => offen.filter === 'alle' || t.area === offen.filter);
+  const groups = [
+    ['Überfällig', list.filter(t => t.due && t.due < today)],
+    ['Nächste 14 Tage', list.filter(t => t.due && t.due >= today && t.due <= soonIso)],
+    ['Später', list.filter(t => t.due && t.due > soonIso)],
+    ['Ohne Datum', list.filter(t => !t.due)]
+  ];
+  const box = $('#o-list'); box.innerHTML = '';
+  const overdue = groups[0][1].length;
+  box.appendChild(el('div', 'hint', `${list.length} offene Aufgaben auf ${new Set(list.map(t => t.page)).size} Seiten${overdue ? `, davon ${overdue} überfällig` : ''}`));
+  for (const [name, items] of groups) {
+    if (!items.length) continue;
+    items.sort((a, b) => (a.due || '').localeCompare(b.due || '') || a.area.localeCompare(b.area) || a.page.localeCompare(b.page) || a.lineNo - b.lineNo);
+    box.appendChild(el('h2', null, `${name} (${items.length})`));
+    for (const t of items) box.appendChild(taskCard(t, name === 'Überfällig'));
+  }
+}
+function taskCard(t, late){
+  const card = el('div', 'card task');
+  const row = el('div', 'trow');
+  const cb = el('button', 'tick', ''); cb.type = 'button'; cb.setAttribute('aria-label', 'Abhaken');
+  cb.onclick = () => tickTask(t, cb);
+  const body = el('div', 'tbody');
+  if (t.parent) body.appendChild(el('div', 'hint', '↳ ' + t.parent.slice(0, 60)));
+  const txt = el('div', 'ttext', t.text);
+  body.appendChild(txt);
+  const meta = el('div', 'hint');
+  if (t.due) { const d = el('span', 'due' + (late ? ' late' : ''), fmtDate(t.due)); meta.appendChild(d); meta.append(' · ') }
+  meta.append(`${t.page} · ${t.area}`);
+  body.appendChild(meta);
+  body.onclick = () => txt.classList.toggle('open');
+  row.append(cb, body); card.appendChild(row);
+  return card;
+}
+async function tickTask(t, btn){
+  if (!confirm(`Abhaken?\n\n${t.text.slice(0, 200)}`)) return;
+  btn.disabled = true; btn.textContent = '…';
+  const today = berlin().date;
+  try {
+    await updateFile(t.path, old => { if (old == null) throw new Error('Seite nicht gefunden.'); return tickLine(old, t, today) }, `offen: Aufgabe abgehakt (${t.page})`);
+    await updateFile('wiki/log.md', old => (old || '').replace(/\s*$/, '\n') + `- ${today} — Aufgabe auf [[${t.page}]] in der App abgehakt: ${t.text.slice(0, 120)}${t.text.length > 120 ? ' …' : ''}\n`, `log: Aufgabe abgehakt (${t.page})`);
+    offen.tasks = offen.tasks.filter(x => x !== t); renderOffen(); msg('Abgehakt.', 'ok');
+  } catch(e){ btn.disabled = false; btn.textContent = ''; msg(e.message, 'err') }
+}
+
 // ---------- Settings & tabs ----------
 async function saveSettings(){
   store.set('repo',$('#set-repo').value.trim()); store.set('branch',$('#set-branch').value.trim()); store.set('token',$('#set-token').value.trim());
@@ -313,10 +490,12 @@ async function saveSettings(){
 }
 function tab(name){
   $$('nav button').forEach(b => b.classList.toggle('on', b.dataset.tab===name));
-  ['checkin','note','symptom','settings'].forEach(t => $('#tab-'+t).classList.toggle('hidden', t!==name));
+  ['checkin','note','symptom','offen','settings'].forEach(t => $('#tab-'+t).classList.toggle('hidden', t!==name));
+  if (name === 'offen' && !offen.loaded) loadOffen();
 }
 $$('nav button').forEach(b => b.onclick = () => tab(b.dataset.tab));
 $('#ci-kurz').onchange = renderCheckin;
+$('#o-reload').onclick = loadOffen;
 $('#ci-save').onclick = saveCheckin; $('#n-save').onclick = saveNote; $('#s-save').onclick = saveObs; $('#set-save').onclick = saveSettings;
 const now = berlin();
 $('#ci-date').value = now.date; $('#n-date').value = now.date; $('#n-time').value = now.time;
