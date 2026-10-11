@@ -1,0 +1,46 @@
+/* Base: reset, page, type and motion. Uses only design tokens (see theme-*.css); no theme selectors here. */
+*{box-sizing:border-box}
+html{background:var(--bg-color)}
+body{
+  margin:0;padding:0 16px 96px;min-height:100vh;
+  font:400 var(--body-size)/1.55 var(--font-body);color:var(--text);-webkit-font-smoothing:antialiased;overflow-x:clip;
+  background:var(--bg-image);background-color:var(--bg-color);
+}
+/* film grain (opacity 0 = off) */
+body::after{
+  content:"";position:fixed;inset:0;z-index:100;pointer-events:none;opacity:var(--grain);mix-blend-mode:overlay;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+main{max-width:640px;margin:0 auto}
+a{color:inherit}
+::selection{background:var(--selection-bg);color:var(--selection-fg)}
+strong{font-weight:600}
+button{font-family:var(--font-body)}
+.hidden{display:none!important}
+
+h1{
+  margin:var(--h1-margin);font:var(--h1-font);letter-spacing:var(--h1-tracking);text-transform:var(--h1-case);
+  background:var(--h1-fill);-webkit-background-clip:text;background-clip:text;color:var(--h1-color);
+  -webkit-font-smoothing:var(--display-smoothing);animation:var(--h1-anim);
+}
+h2{
+  display:flex;align-items:center;gap:var(--h2-gap);margin:30px 0 10px;
+  font:var(--h2-font);letter-spacing:var(--h2-tracking);text-transform:uppercase;color:var(--h2-color);-webkit-font-smoothing:var(--display-smoothing);
+}
+h2::before{content:"";flex:none;width:var(--h2-mark-w);height:var(--h2-mark-h);border-radius:999px;background:var(--h2-mark-bg);box-shadow:var(--h2-mark-shadow);opacity:var(--h2-mark-opacity)}
+.hint{color:var(--text-2);font-size:.86rem;font-weight:var(--hint-weight);line-height:1.6}
+label.q{display:block;margin-bottom:8px;font-weight:var(--label-weight);letter-spacing:-.01em}
+label.q .hint{font-weight:300}
+.bigq{margin:4px 0 8px;font:var(--bigq-font);letter-spacing:var(--bigq-tracking);color:var(--text);-webkit-font-smoothing:var(--display-smoothing)}
+
+/* motion */
+main>section:not(.hidden){animation:var(--section-anim)}
+@keyframes rise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+@keyframes rise-blur{from{opacity:0;translate:0 18px;filter:blur(6px)}to{opacity:1;translate:0 0;filter:blur(0)}}
+@keyframes wipe{from{clip-path:inset(0 0 100% 0);opacity:.4}to{clip-path:inset(0 0 0 0);opacity:1}}
+@keyframes pulse{50%{opacity:.35}}
+@keyframes blink{50%{opacity:.25}}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+
+/* font size: scales the whole app content (text and spacing together) */
+main,#msg,.lockbox{zoom:var(--zoom,1)}

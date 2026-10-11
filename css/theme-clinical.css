@@ -1,0 +1,140 @@
+/* Theme „Klinik“ (data-theme="clinical"): quiet clinical instrument — deep ink, near-black panels with a soft
+   signal glow rising behind the top edge, light grotesque headlines, data in mono, one cool signal accent.
+   The lit primary button is the only effect; everything else stays still. */
+@font-face{font-family:"Bricolage Grotesque";font-weight:200;font-display:swap;src:url(../fonts/bricolage-grotesque-latin-200-normal.woff2) format("woff2")}
+@font-face{font-family:"Bricolage Grotesque";font-weight:300;font-display:swap;src:url(../fonts/bricolage-grotesque-latin-300-normal.woff2) format("woff2")}
+@font-face{font-family:"Bricolage Grotesque";font-weight:400;font-display:swap;src:url(../fonts/bricolage-grotesque-latin-400-normal.woff2) format("woff2")}
+@font-face{font-family:"Hanken Grotesk";font-weight:300;font-display:swap;src:url(../fonts/hanken-grotesk-latin-300-normal.woff2) format("woff2")}
+@font-face{font-family:"Hanken Grotesk";font-weight:400;font-display:swap;src:url(../fonts/hanken-grotesk-latin-400-normal.woff2) format("woff2")}
+@font-face{font-family:"Hanken Grotesk";font-weight:500;font-display:swap;src:url(../fonts/hanken-grotesk-latin-500-normal.woff2) format("woff2")}
+@font-face{font-family:"Hanken Grotesk";font-weight:600;font-display:swap;src:url(../fonts/hanken-grotesk-latin-600-normal.woff2) format("woff2")}
+@font-face{font-family:"IBM Plex Mono";font-weight:400;font-display:swap;src:url(../fonts/ibm-plex-mono-latin-400-normal.woff2) format("woff2")}
+@font-face{font-family:"IBM Plex Mono";font-weight:500;font-display:swap;src:url(../fonts/ibm-plex-mono-latin-500-normal.woff2) format("woff2")}
+
+[data-theme="clinical"]{
+  color-scheme:dark;
+  /* palette */
+  --ink-0:#070a13;--ink-1:#0c1121;--line-2:rgba(160,182,235,.22);--panel:#05070d;--panel-line:rgba(160,182,235,.14);
+  --signal:#8db5ff;--signal-deep:#2b56c9;--glow:rgb(176,222,255);--glow-soft:rgba(176,222,255,.45);
+  --signal-10:rgba(141,181,255,.1);--signal-16:rgba(141,181,255,.16);--signal-50:rgba(141,181,255,.5);--radius:16px;
+  --lit-ring:inset 0 0 1px var(--glow),inset 0 0 10px var(--glow-soft);
+  --panel-glow:radial-gradient(70% 55% at 50% -12%,var(--signal-16),transparent 70%);
+
+  /* foundations */
+  --font-body:"Hanken Grotesk","Helvetica Neue",Helvetica,Arial,system-ui,sans-serif;
+  --font-mono:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace;
+  --font-display:"Bricolage Grotesque","Helvetica Neue",Helvetica,Arial,sans-serif;
+  --body-size:15.5px;--display-smoothing:antialiased;--ease:cubic-bezier(.6,0,.2,1);
+  --text:#e9ecf5;--text-2:#b8bfd5;--text-3:#848ba5;--accent:var(--signal);--focus:var(--signal);
+  --ok:#4fcf9f;--warn:#f0b64e;--err:#ff6b7d;--line:rgba(160,182,235,.11);
+  --bg-color:var(--ink-0);
+  --bg-image:radial-gradient(42% 30% at 88% 4%,rgba(43,86,201,.42),transparent 72%) fixed,radial-gradient(30% 22% at 70% 0%,rgba(141,181,255,.12),transparent 70%) fixed,var(--ink-0) no-repeat fixed;
+  --grain:.06;--selection-bg:var(--signal-deep);--selection-fg:#fff;--section-anim:none;
+
+  /* type: light grotesque display, mono labels */
+  --h1-margin:28px 0 14px;--h1-font:300 clamp(2.2rem,1.6rem + 2.6vw,2.9rem)/.98 var(--font-display);--h1-tracking:-.035em;--h1-case:none;
+  --h1-fill:none;--h1-color:var(--text);--h1-anim:none;
+  --h2-gap:8px;--h2-font:400 12px/1.4 var(--font-mono);--h2-tracking:.06em;--h2-color:var(--text-3);
+  --h2-mark-w:4px;--h2-mark-h:4px;--h2-mark-bg:var(--signal);--h2-mark-shadow:none;--h2-mark-opacity:.7;
+  --hint-weight:300;--label-weight:500;
+  --bigq-font:300 1.7rem/1.08 var(--font-display);--bigq-tracking:-.03em;
+
+  /* panels: near-black, glow rising from behind the top edge; still */
+  --card-radius:var(--radius);--card-border:1px solid var(--panel-line);--card-bg:var(--panel-glow),var(--panel);--card-shadow:0 30px 60px -40px rgba(0,0,0,.9);--card-overflow:visible;
+  --card-hover-transform:none;--card-hover-shadow:var(--card-shadow);--card-hover-border-color:var(--line-2);
+
+  /* nav: frosted header pill */
+  --nav-pad:4px;--nav-border:1px solid var(--line);--nav-radius:999px;--nav-bg:rgba(5,7,13,.72);
+  --nav-shadow:0 18px 40px -24px rgba(0,0,0,.95);--nav-backdrop:blur(18px) saturate(140%);
+  --nav-item-radius:999px;--nav-font:500 .84rem var(--font-body);--nav-color:var(--text-2);--nav-on-color:var(--text);
+  --glide-bg:var(--signal-10);--glide-shadow:inset 0 0 0 1px var(--signal-50);
+
+  /* buttons: the power switch — dark pill, lit on hover */
+  --btn-min-h:0;--btn-border:1px solid rgba(190,215,255,.4);--btn-font:500 .95rem var(--font-body);--btn-color:#fff;--btn-bg:var(--signal-deep);
+  --btn-shadow:inset 0 1px 0 rgba(255,255,255,.16),0 12px 30px -14px rgba(43,86,201,.9);
+  --btn-hover-transform:none;--btn-hover-shadow:var(--lit-ring),0 0 18px var(--glow-soft),0 0 52px rgba(43,86,201,.5);
+  --btn-hover-border-color:#fff;--btn-hover-filter:none;--btn-focus-shadow:var(--btn-hover-shadow);--btn-active-transform:translateY(0);
+  --ghost-border:1px solid var(--line-2);--ghost-font:500 .86rem var(--font-body);--ghost-color:var(--text-2);--ghost-bg:none;--ghost-shadow:none;
+  --ghost-hover-bg:none;--ghost-hover-shadow:none;--ghost-hover-border-color:rgba(190,210,255,.45);--ghost-hover-color:var(--text);--ghost-hover-transform:none;
+  --msgbtn-border:1px solid rgba(190,215,255,.4);--msgbtn-color:#fff;--msgbtn-bg:var(--signal-deep);--msgbtn-shadow:none;
+
+  /* pills */
+  --pill-border:1px solid var(--line-2);--pill-size:.82rem;--pill-weight:500;--pill-line-height:normal;--pill-bg:none;--pill-shadow:none;
+  --pill-hover-color:var(--text);--pill-hover-bg:none;--pill-hover-shadow:none;--pill-hover-border-color:var(--signal-50);
+  --pill-on-color:var(--text);--pill-on-weight:500;--pill-on-bg:var(--signal-16);--pill-on-shadow:none;--pill-on-border-color:var(--signal-50);
+
+  /* fields */
+  --field-border:1px solid var(--line-2);--field-radius:12px;--field-bg:var(--ink-1);--field-shadow:none;
+  --field-focus-shadow:0 0 0 3px var(--signal-10);--field-focus-border-color:var(--signal-50);
+  --textarea-font:400 .95rem/1.55 var(--font-body);--textarea-tracking:normal;--option-bg:#0c1121;--check-accent:var(--signal-deep);
+
+  --scale-border:1px solid var(--line-2);--scale-radius:12px;--scale-font:400 1.05rem var(--font-mono);--scale-color:var(--text-2);
+  --scale-bg:var(--ink-1);--scale-shadow:none;
+  --scale-hover-shadow:none;--scale-hover-border-color:var(--signal-50);
+  --scale-on-color:#fff;--scale-on-bg:var(--signal-deep);--scale-on-shadow:var(--lit-ring),0 0 18px var(--glow-soft);
+  --scale-on-border-color:#fff;--scale-on-transform:none;--scale-on-text-shadow:none;
+  --scale-big-pad:17px 0;--scale-big-size:1.25rem;--scale-big-radius:12px;
+
+  /* wizard */
+  --prog-h:3px;--prog-bg:var(--line);--prog-fill:var(--signal);--prog-glow:0 0 10px var(--signal-50);
+  --sumrow-line:1px solid var(--line);--sumrow-value-font:500 .95rem var(--font-mono);--sumrow-value-color:var(--text);
+  --step-font:400 12px var(--font-mono);--step-tracking:.06em;--step-color:var(--text-3);
+
+  /* states */
+  --status-weight:500;--status-dot:6px;
+  --status-ok-color:var(--text);--status-ok-glow:0 0 8px var(--ok);--status-ok-anim:none;
+  --status-todo-color:var(--text);--status-todo-dot:var(--warn);--status-todo-glow:0 0 8px var(--warn);--status-todo-anim:none;
+  --quick-border:1px solid var(--panel-line);--quick-radius:var(--radius);--quick-font:300 1.25rem var(--font-display);--quick-tracking:-.02em;--quick-color:var(--text);
+  --quick-bg:radial-gradient(70% 60% at 50% -15%,var(--signal-16),transparent 70%),var(--panel);--quick-shadow:none;
+  --quick-hover-transform:none;--quick-hover-shadow:0 0 0 1px var(--signal-10);--quick-hover-border-color:var(--signal-50);
+  --outbox-border:1px solid var(--signal-50);--outbox-bg:var(--signal-10);--outbox-shadow:none;
+
+  /* tasks */
+  --tick-border:1px solid var(--line-2);--tick-radius:7px;--tick-bg:var(--ink-1);--tick-shadow:none;
+  --tick-hover-bg:var(--signal-10);--tick-hover-shadow:0 0 12px -2px var(--signal-50);--tick-hover-border-color:var(--signal);
+  --due-font:500 12px var(--font-mono);--due-tracking:.02em;--due-case:none;--due-color:var(--signal);--due-late-glow:none;
+  --link-color:var(--text-2);--link-line:var(--line-2);--link-hover-color:var(--signal);--link-hover-line:var(--signal-50);
+
+  /* charts: smooth signal curve */
+  --chart-bg:none;--chart-border:0;--chart-radius:0;--chart-shadow:none;
+  --axis-color:var(--text-3);--axis-font:400 10px var(--font-mono);
+  --chart-line:var(--signal);--chart-line-glow:drop-shadow(0 0 6px rgba(141,181,255,.55));
+  --chart-dot:var(--signal);--chart-dot-opacity:.28;--chart-dot-ring:var(--panel);--chart-cross:var(--signal-50);
+  --chart-title-font:300 1.35rem var(--font-display);--chart-title-tracking:-.03em;
+  --cstat-font:400 12px var(--font-mono);--cstat-tracking:.02em;--cstat-case:none;--cstat-color:var(--text-3);
+  --ccap-font:400 12px var(--font-mono);--ccap-tracking:.03em;--ccap-color:var(--text-2);
+
+  /* toast */
+  --msg-border:1px solid var(--panel-line);--msg-radius:12px;--msg-font:400 .9rem var(--font-body);--msg-tracking:normal;--msg-color:var(--text);
+  --msg-bg:rgba(5,7,13,.86);--msg-shadow:0 20px 50px -24px rgba(0,0,0,.95);--msg-backdrop:blur(18px) saturate(140%);--msg-anim:none;
+  --msg-dot:6px;--msg-dot-bg:var(--signal);--msg-dot-glow:0 0 8px var(--signal);--msg-dot-anim:none;
+  --msg-ok-glow:0 0 8px var(--ok);--msg-err-line:rgba(255,107,125,.4);--msg-err-shadow:var(--msg-shadow);--msg-err-glow:0 0 8px var(--err);
+
+  /* lock */
+  --lockbox-pad:28px 24px 22px;--lockbox-border:1px solid var(--panel-line);--lockbox-radius:var(--radius);
+  --lockbox-bg:var(--panel-glow),rgba(5,7,13,.86);--lockbox-shadow:0 40px 90px -40px rgba(0,0,0,.95);--lockbox-backdrop:blur(18px);
+  --lock-title-size:1.7rem;--lock-title-case:none;--lock-title-fill:none;--lock-title-color:var(--text);
+  --pin-font:400 1.4rem var(--font-mono);--pin-tracking:.4em;--pin-color:var(--text);--pin-glow:none;
+
+  /* settings choices, voice, page search */
+  --choice-border:1px solid var(--line-2);--choice-radius:12px;--choice-bg:var(--ink-1);--choice-shadow:none;
+  --choice-sample-family:var(--font-display);--choice-sample-weight:300;
+  --choice-on-border-color:var(--signal-50);--choice-on-bg:var(--signal-16);--choice-on-shadow:none;--choice-on-sample-color:var(--text);
+  --mic-radius:50%;--mic-color:var(--signal);--mic-bg:var(--ink-1);--mic-shadow:inset 0 0 0 1px var(--line-2);--mic-hover-shadow:inset 0 0 0 1px var(--signal);
+  --mic-on-color:#fff;--mic-on-bg:var(--signal-deep);--mic-on-shadow:var(--lit-ring),0 0 18px var(--glow-soft);--mic-on-anim:none;
+  --miclive-font:400 12px var(--font-mono);--miclive-color:var(--signal);
+  --item-border:1px solid var(--line-2);--item-radius:12px;--pagesel-radius:12px;--item-bg:var(--ink-1);--item-shadow:none;
+  --item-hover-bg:var(--signal-10);--item-hover-shadow:none;--item-hover-border-color:var(--signal-50);
+  --item-meta-font:400 11px var(--font-mono);--item-meta-tracking:.04em;--item-meta-case:uppercase;--item-meta-color:var(--text-2);
+}
+
+/* signature: the HUD — glowing core, tilted tick rings behind the PIN */
+[data-theme="clinical"] .lockhud{display:block;position:absolute;z-index:-1;top:23%;left:50%;width:min(560px,130vw);aspect-ratio:1;translate:-50% -50%;perspective:1600px;pointer-events:none}
+[data-theme="clinical"] .lockhud .plane{position:absolute;inset:0;transform:rotateX(57deg) rotateZ(-18deg);transform-style:preserve-3d}
+[data-theme="clinical"] .lockhud b{position:absolute;left:50%;top:50%;width:7%;aspect-ratio:1;translate:-50% -50%;border-radius:50%;background:var(--signal);box-shadow:0 0 70px 18px rgba(141,181,255,.5)}
+[data-theme="clinical"] .lockhud i{position:absolute;left:50%;top:50%;translate:-50% -50%;border-radius:50%;border:3px dashed rgba(141,181,255,.55);animation:ring-turn 140s linear infinite}
+[data-theme="clinical"] .lockhud i:nth-of-type(1){width:30%;aspect-ratio:1;border-color:rgba(141,181,255,.8)}
+[data-theme="clinical"] .lockhud i:nth-of-type(2){width:50%;aspect-ratio:1;border-style:dotted;opacity:.7;animation-direction:reverse}
+[data-theme="clinical"] .lockhud i:nth-of-type(3){width:72%;aspect-ratio:1;opacity:.45}
+[data-theme="clinical"] .lockhud i:nth-of-type(4){width:96%;aspect-ratio:1;border-width:1px;border-style:solid;opacity:.3}
+@keyframes ring-turn{to{rotate:1turn}}

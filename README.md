@@ -33,7 +33,11 @@ Die 20:47-Routine und `/checkin` erkennen einen Check-in aus der App und überne
   - **Stahl** (`steel`): Stahlplatten mit Chrom-Fasen, VT323-Phosphor-Anzeigen, Geist als Fließtext, Scanlines in vertieften Feldern, Grün/Bernstein/Koralle nur als Zustand; schräge Laufschrift auf dem Sperrbildschirm
   - **Klinik** (`clinical`): tiefes Tintenblau, fast schwarze Panels mit Signalschein an der Oberkante, leichte Grotesk-Überschriften (Bricolage Grotesque), Hanken Grotesk, Daten in IBM Plex Mono, ein kühler Signalakzent; einziger Effekt ist der aufleuchtende Hauptknopf, sonst ruhig; Sperrbildschirm mit Kern und gekippten Tick-Ringen
 - Schriftgröße wählbar unter ⚙︎ → Design (Klein 90 %, Normal, Groß 115 %, Sehr groß 130 %; `localStorage` `fontscale`): skaliert den App-Inhalt per CSS `zoom`, die Tab-Leiste wächst höchstens auf 110 %.
-- Tokens als CSS-Variablen oben im `<style>`; „Stahl“ und „Klinik“ überschreiben sie in den Blöcken `[data-theme="steel"]` bzw. `[data-theme="clinical"]`.
+- Aufbau über Design-Tokens (CSS-Variablen) in `css/`:
+  - `base.css` (Grundlayout, Typo, Animationen) und `components.css` (alle Bausteine: Karten, Tab-Leiste, Knöpfe, Felder, Skalen, Diagramme, Meldung, Sperre …) sind **einmal** geschrieben und lesen nur Tokens, z. B. `var(--card-bg)`.
+  - Jedes Design ist eine Datei `theme-<name>.css`: ein Block `[data-theme="<name>"]{…}` mit allen Token-Werten, dazu die eigenen Schriften und höchstens kleine Extras, die es nur dort gibt (Stahl: Glanz über Karten und Laufschrift-Sperre; Klinik: Tick-Ringe; Ringe: Ringe auf der Sperre).
+  - Eine Bausteinänderung wirkt so in allen Designs; ein Design ändert nur Werte, keine Regeln.
+- Neues Design: eine `theme-*.css` kopieren und Werte anpassen, in `index.html` verlinken, in `sw.js` (`SHELL`) eintragen und `CACHE` hochzählen, in der Auswahl unter ⚙︎ → Design ergänzen. `tests/tokens.spec.js` prüft, dass jedes Design jedes benutzte Token setzt, keine ungenutzten Tokens enthält und eingebunden ist.
 - Alle Schriften liegen lokal unter `fonts/` (SIL Open Font License), kein Abruf bei Google Fonts.
 
 ## Schreiben ins Repo
@@ -54,3 +58,9 @@ npx playwright install chromium
 npm test
 ```
 
+Screenshot-Tests aller Bildschirme in allen Designs (`tests/visual.spec.js`) laufen nur lokal, weil die Vergleichsbilder vom genauen Chromium-Build abhängen. Vor jeder Designänderung:
+
+```
+npm run test:visual                      # gegen die Vergleichsbilder
+npm run test:visual -- --update-snapshots  # nur bei gewollter Änderung
+```

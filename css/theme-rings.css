@@ -1,0 +1,130 @@
+/* Theme „Ringe“ (data-theme="rings", default): deep-navy radiating rings — gradient hairline surfaces,
+   pill controls, Poppins + JetBrains Mono, lit-blue accents, soft glows, film grain. */
+@font-face{font-family:"Poppins";font-weight:300;font-display:swap;src:url(../fonts/poppins-latin-300-normal.woff2) format("woff2")}
+@font-face{font-family:"Poppins";font-weight:400;font-display:swap;src:url(../fonts/poppins-latin-400-normal.woff2) format("woff2")}
+@font-face{font-family:"Poppins";font-weight:500;font-display:swap;src:url(../fonts/poppins-latin-500-normal.woff2) format("woff2")}
+@font-face{font-family:"Poppins";font-weight:600;font-display:swap;src:url(../fonts/poppins-latin-600-normal.woff2) format("woff2")}
+@font-face{font-family:"JetBrains Mono";font-weight:400;font-display:swap;src:url(../fonts/jetbrains-mono-latin-400-normal.woff2) format("woff2")}
+@font-face{font-family:"JetBrains Mono";font-weight:500;font-display:swap;src:url(../fonts/jetbrains-mono-latin-500-normal.woff2) format("woff2")}
+
+[data-theme="rings"]{
+  color-scheme:dark;
+  /* palette */
+  --void:#040d2a;--lit:#a4d8ff;--blue:#045cff;--glass:rgba(4,17,60,.62);
+  --edge-hi:rgba(170,210,255,.42);--edge-lo:rgba(123,161,244,.05);
+  --surface-grad:linear-gradient(180deg,rgba(16,40,108,.55),rgba(5,14,46,.7)) padding-box,linear-gradient(180deg,var(--edge-hi),var(--edge-lo) 70%) border-box;
+
+  /* foundations */
+  --font-body:"Poppins",system-ui,sans-serif;--font-mono:"JetBrains Mono",ui-monospace,monospace;
+  --body-size:15px;--display-smoothing:antialiased;--ease:cubic-bezier(.2,.8,.2,1);
+  --text:#fdfdff;--text-2:#a9bbe4;--text-3:#6a7ea6;--accent:var(--lit);--focus:var(--lit);
+  --ok:#5bf0b0;--err:#ff7f98;--line:rgba(123,161,244,.18);
+  --bg-color:var(--void);
+  --bg-image:radial-gradient(90% 50% at 85% -5%,rgba(30,80,190,.32),transparent 60%),radial-gradient(70% 40% at 0% 0%,rgba(198,224,255,.10),transparent 70%),linear-gradient(158deg,#0d2a6b 0%,#071845 30%,#04102e 58%,#040d2a 100%) fixed;
+  --grain:.07;--selection-bg:rgba(4,92,255,.55);--selection-fg:inherit;--section-anim:rise .5s var(--ease);
+
+  /* type */
+  --h1-margin:26px 0 12px;--h1-font:600 clamp(1.6rem,1.2rem + 1.6vw,2rem)/1.12 var(--font-body);--h1-tracking:-.03em;--h1-case:none;
+  --h1-fill:linear-gradient(180deg,#fff 20%,#9cc6ff 100%);--h1-color:transparent;--h1-anim:none;
+  --h2-gap:10px;--h2-font:500 11px/1.4 var(--font-mono);--h2-tracking:.18em;--h2-color:var(--lit);
+  --h2-mark-w:14px;--h2-mark-h:9px;--h2-mark-bg:linear-gradient(180deg,var(--lit),#3f7ddc);--h2-mark-shadow:0 0 0 3px rgba(39,91,187,.35);--h2-mark-opacity:1;
+  --hint-weight:300;--label-weight:600;
+  --bigq-font:600 1.3rem/1.25 var(--font-body);--bigq-tracking:-.02em;
+
+  /* surfaces */
+  --card-radius:22px;--card-border:1px solid transparent;--card-bg:var(--surface-grad);--card-shadow:none;--card-overflow:visible;
+  --card-hover-transform:translateY(-2px);--card-hover-shadow:0 30px 60px -34px rgba(90,160,255,.9);--card-hover-border-color:transparent;
+
+  /* nav */
+  --nav-pad:5px;--nav-border:0;--nav-radius:999px;--nav-bg:rgba(8,26,80,.72);
+  --nav-shadow:inset 0 0 0 1px rgba(164,216,255,.12),0 14px 34px -18px rgba(0,0,0,.9);--nav-backdrop:blur(12px);
+  --nav-item-radius:999px;--nav-font:400 .84rem var(--font-body);--nav-color:var(--text-2);--nav-on-color:#fff;
+  --glide-bg:rgba(233,243,255,.2);--glide-shadow:inset 0 0 0 1px rgba(233,243,255,.22);
+
+  /* buttons */
+  --btn-min-h:0;--btn-border:0;--btn-font:500 .95rem var(--font-body);--btn-color:#fff;--btn-bg:var(--blue);
+  --btn-shadow:0 10px 26px -8px rgba(4,92,255,.85),inset 0 -8px 14px -6px rgba(255,255,255,.6);
+  --btn-hover-transform:translateY(-2px);--btn-hover-shadow:0 16px 32px -8px rgba(4,92,255,.9),inset 0 -8px 14px -6px rgba(255,255,255,.7);
+  --btn-hover-border-color:transparent;--btn-hover-filter:none;--btn-focus-shadow:var(--btn-shadow);--btn-active-transform:translateY(0);
+  --ghost-border:0;--ghost-font:400 .84rem var(--font-body);--ghost-color:var(--text);--ghost-bg:rgba(123,161,244,.06);--ghost-shadow:inset 0 0 0 1px rgba(164,216,255,.32);
+  --ghost-hover-bg:rgba(123,161,244,.14);--ghost-hover-shadow:inset 0 0 0 1px rgba(200,228,255,.6);--ghost-hover-border-color:transparent;--ghost-hover-color:var(--text);--ghost-hover-transform:none;
+  --msgbtn-border:0;--msgbtn-color:var(--text);--msgbtn-bg:rgba(255,255,255,.1);--msgbtn-shadow:inset 0 0 0 1px var(--lit);
+
+  /* pills */
+  --pill-border:0;--pill-size:.84rem;--pill-weight:400;--pill-line-height:inherit;--pill-bg:rgba(123,161,244,.08);--pill-shadow:inset 0 0 0 1px rgba(164,216,255,.18);
+  --pill-hover-color:#fff;--pill-hover-bg:rgba(123,161,244,.08);--pill-hover-shadow:inset 0 0 0 1px rgba(200,228,255,.45);--pill-hover-border-color:transparent;
+  --pill-on-color:#fff;--pill-on-weight:500;--pill-on-bg:rgba(233,243,255,.2);--pill-on-shadow:inset 0 0 0 1px rgba(233,243,255,.3);--pill-on-border-color:transparent;
+
+  /* fields */
+  --field-border:0;--field-radius:14px;--field-bg:rgba(4,17,60,.55);--field-shadow:inset 0 0 0 1px rgba(164,216,255,.2);
+  --field-focus-shadow:inset 0 0 0 1px rgba(200,228,255,.6),0 0 0 4px rgba(39,91,187,.35);--field-focus-border-color:transparent;
+  --textarea-font:400 .95rem/1.55 var(--font-body);--textarea-tracking:normal;--option-bg:#081d5c;--check-accent:var(--blue);
+
+  /* scales */
+  --scale-border:0;--scale-radius:12px;--scale-font:500 1rem var(--font-body);--scale-color:var(--text);
+  --scale-bg:rgba(123,161,244,.08);--scale-shadow:inset 0 0 0 1px rgba(164,216,255,.2);
+  --scale-hover-shadow:inset 0 0 0 1px rgba(200,228,255,.55);--scale-hover-border-color:transparent;
+  --scale-on-color:#fff;--scale-on-bg:var(--blue);--scale-on-shadow:0 8px 22px -8px rgba(4,92,255,.9),inset 0 -6px 12px -6px rgba(255,255,255,.6);
+  --scale-on-border-color:transparent;--scale-on-transform:translateY(-1px);--scale-on-text-shadow:none;
+  --scale-big-pad:17px 0;--scale-big-size:1.2rem;--scale-big-radius:16px;
+
+  /* wizard */
+  --prog-h:6px;--prog-bg:rgba(123,161,244,.14);--prog-fill:linear-gradient(90deg,#275bbb,var(--lit));--prog-glow:none;
+  --sumrow-line:1px solid var(--line);--sumrow-value-font:500 15px/1.55 var(--font-body);--sumrow-value-color:var(--text);
+  --step-font:500 11px var(--font-mono);--step-tracking:.16em;--step-color:var(--lit);
+
+  /* heute */
+  --status-weight:600;--status-dot:8px;
+  --status-ok-color:#c9ffe6;--status-ok-glow:0 0 10px var(--ok);--status-ok-anim:pulse 2.4s ease-in-out infinite;
+  --status-todo-color:var(--text);--status-todo-dot:var(--lit);--status-todo-glow:0 0 10px rgba(164,216,255,.9);--status-todo-anim:pulse 2.4s ease-in-out infinite;
+  --quick-border:1px solid transparent;--quick-radius:18px;--quick-font:600 .95rem var(--font-body);--quick-tracking:normal;--quick-color:var(--text);
+  --quick-bg:var(--surface-grad);--quick-shadow:none;
+  --quick-hover-transform:translateY(-3px);--quick-hover-shadow:0 24px 50px -30px rgba(90,160,255,.9);--quick-hover-border-color:transparent;
+  --outbox-border:1px solid transparent;--outbox-bg:var(--glass);--outbox-shadow:inset 0 0 0 1px rgba(164,216,255,.3);
+
+  /* tasks */
+  --tick-border:0;--tick-radius:9px;--tick-bg:rgba(4,17,60,.6);--tick-shadow:inset 0 0 0 1.5px rgba(164,216,255,.55);
+  --tick-hover-bg:rgba(4,92,255,.25);--tick-hover-shadow:inset 0 0 0 1.5px var(--lit),0 0 14px -2px rgba(164,216,255,.7);--tick-hover-border-color:transparent;
+  --due-font:500 .78rem var(--font-mono);--due-tracking:.04em;--due-case:none;--due-color:var(--lit);--due-late-glow:none;
+  --link-color:var(--lit);--link-line:rgba(164,216,255,.35);--link-hover-color:var(--lit);--link-hover-line:var(--lit);
+
+  /* charts */
+  --chart-bg:none;--chart-border:0;--chart-radius:0;--chart-shadow:none;
+  --axis-color:var(--text-3);--axis-font:10px var(--font-mono);
+  --chart-line:var(--lit);--chart-line-glow:drop-shadow(0 0 4px rgba(164,216,255,.6));
+  --chart-dot:#5b93e6;--chart-dot-opacity:.55;--chart-dot-ring:#0a1c4d;--chart-cross:var(--text-2);
+  --chart-title-font:600 1.05rem/1.6 var(--font-body);--chart-title-tracking:-.015em;
+  --cstat-font:400 .78rem var(--font-mono);--cstat-tracking:.04em;--cstat-case:none;--cstat-color:var(--text-2);
+  --ccap-font:300 .74rem/1.6 var(--font-mono);--ccap-tracking:.03em;--ccap-color:var(--text-2);
+
+  /* toast */
+  --msg-border:0;--msg-radius:16px;--msg-font:400 .9rem/1.55 var(--font-body);--msg-tracking:normal;--msg-color:var(--text);
+  --msg-bg:var(--glass);--msg-shadow:inset 0 0 0 1px rgba(164,216,255,.26),0 18px 40px -18px rgba(0,0,0,.9);--msg-backdrop:blur(12px);--msg-anim:rise .35s var(--ease);
+  --msg-dot:7px;--msg-dot-bg:var(--lit);--msg-dot-glow:0 0 8px var(--lit);--msg-dot-anim:pulse 2.4s ease-in-out infinite;
+  --msg-ok-glow:0 0 8px var(--ok);--msg-err-line:transparent;--msg-err-shadow:inset 0 0 0 1px rgba(255,127,152,.45),0 18px 40px -18px rgba(0,0,0,.9);--msg-err-glow:0 0 8px var(--err);
+
+  /* lock */
+  --lockbox-pad:28px 24px 22px;--lockbox-border:0;--lockbox-radius:28px;--lockbox-bg:rgba(4,17,60,.5);
+  --lockbox-shadow:inset 0 0 0 1px rgba(164,216,255,.26),0 30px 70px -30px rgba(0,0,0,.95);--lockbox-backdrop:blur(14px);
+  --lock-title-size:1.3rem;--lock-title-case:none;--lock-title-fill:var(--h1-fill);--lock-title-color:transparent;
+  --pin-font:500 1.4rem var(--font-mono);--pin-tracking:.35em;--pin-color:var(--text);--pin-glow:none;
+
+  /* settings choices, voice, page search */
+  --choice-border:0;--choice-radius:12px;--choice-bg:rgba(255,255,255,.04);--choice-shadow:inset 0 0 0 1px var(--line);
+  --choice-sample-family:var(--font-body);--choice-sample-weight:600;
+  --choice-on-border-color:transparent;--choice-on-bg:rgba(255,255,255,.04);--choice-on-shadow:inset 0 0 0 2px var(--lit),0 0 18px -6px var(--lit);--choice-on-sample-color:var(--text);
+  --mic-radius:50%;--mic-color:var(--lit);--mic-bg:rgba(255,255,255,.06);--mic-shadow:inset 0 0 0 1px var(--line);--mic-hover-shadow:inset 0 0 0 1px var(--lit);
+  --mic-on-color:#fff;--mic-on-bg:var(--err);--mic-on-shadow:0 0 0 4px rgba(255,127,152,.25),0 0 18px -2px var(--err);--mic-on-anim:pulse 1.6s ease-in-out infinite;
+  --miclive-font:300 .8rem/1.6 var(--font-body);--miclive-color:var(--text-2);
+  --item-border:0;--item-radius:12px;--pagesel-radius:14px;--item-bg:rgba(123,161,244,.08);--item-shadow:inset 0 0 0 1px var(--line);
+  --item-hover-bg:rgba(123,161,244,.16);--item-hover-shadow:inset 0 0 0 1px var(--lit);--item-hover-border-color:transparent;
+  --item-meta-font:300 .75rem/1.6 var(--font-body);--item-meta-tracking:normal;--item-meta-case:none;--item-meta-color:var(--text-2);
+}
+
+/* signature: radiating rings behind the PIN */
+[data-theme="rings"] .lockrings{display:block;position:absolute;z-index:-1;top:50%;left:50%;width:min(720px,118vw);aspect-ratio:1200/680;translate:-50% -50%;pointer-events:none;opacity:.75}
+[data-theme="rings"] .lockrings i{position:absolute;top:50%;left:50%;translate:-50% -50%;border-radius:999px;background:linear-gradient(176deg,var(--c1) 0%,var(--c2) 46%,var(--c3) 100%);box-shadow:inset 0 1px 0 rgba(214,233,255,.5),0 0 34px -12px rgba(120,178,255,.5)}
+[data-theme="rings"] .lockrings i:nth-child(1){width:100%;height:100%;--c1:#3164b8;--c2:#14337c;--c3:#0a1c4d}
+[data-theme="rings"] .lockrings i:nth-child(2){width:86%;height:86%;--c1:#4076cf;--c2:#1a409a;--c3:#0c2260}
+[data-theme="rings"] .lockrings i:nth-child(3){width:72%;height:72%;--c1:#5b93e6;--c2:#24509f;--c3:#0e2a6e}
+[data-theme="rings"] .lockrings i:nth-child(4){width:58%;height:58%;--c1:#7fb1f2;--c2:#2f63c4;--c3:#11337f}
