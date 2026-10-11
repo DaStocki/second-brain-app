@@ -605,6 +605,24 @@ html[data-theme="clinical"]{background:var(--ink-0)}
 .sw.clinical::after{content:"";position:absolute;left:6px;bottom:6px;width:21px;height:21px;border-radius:50%;border:1.5px dashed rgba(141,181,255,.6)}
 @media (prefers-reduced-motion:reduce){.lockhud i{animation:none!important}}
 
+/* voice input */
+.vwrap{position:relative}
+.vwrap textarea{padding-right:52px}
+.mic{
+  position:absolute;right:8px;bottom:8px;display:grid;place-items:center;width:38px;height:38px;border:0;border-radius:50%;cursor:pointer;
+  color:var(--lit);background:rgba(255,255,255,.06);box-shadow:inset 0 0 0 1px var(--line);transition:background .2s,box-shadow .2s,color .2s;
+}
+.mic:hover{box-shadow:inset 0 0 0 1px var(--lit)}
+.mic.on{color:#fff;background:var(--err);box-shadow:0 0 0 4px rgba(255,127,152,.25),0 0 18px -2px var(--err);animation:pulse 1.6s ease-in-out infinite}
+.miclive{min-height:1.2em;margin-top:6px;font-size:.8rem}
+.miclive:empty{display:none}
+[data-theme="steel"] .mic{border-radius:.55rem;color:var(--chrome-hi);background:linear-gradient(180deg,#3d4347,#2c3135);box-shadow:var(--bevel)}
+[data-theme="steel"] .mic.on{color:#3b0d10;background:linear-gradient(180deg,#ffb0b4,var(--err));box-shadow:inset 0 1px 0 rgba(255,255,255,.5),0 0 26px -8px var(--stop-glow);animation:blink 1s steps(2) infinite}
+[data-theme="steel"] .miclive{font:400 1.05rem var(--mono);color:var(--ok)}
+[data-theme="clinical"] .mic{color:var(--signal);background:var(--ink-1);box-shadow:inset 0 0 0 1px var(--line-2)}
+[data-theme="clinical"] .mic.on{color:#fff;background:var(--signal-deep);animation:none;box-shadow:inset 0 0 1px var(--glow),inset 0 0 10px var(--glow-soft),0 0 18px var(--glow-soft)}
+[data-theme="clinical"] .miclive{font:400 12px var(--mono);color:var(--signal)}
+
 .hidden{display:none!important}
 </style>
 </head>
@@ -922,7 +940,7 @@ function renderCheckin(){
     if (s.key === 'dankbar') box.appendChild(el('div', 'hint', 'optional – leer lassen ist völlig in Ordnung'));
     const ta = el('textarea'); ta.value = draft.answers[s.key] || ''; ta.rows = 3;
     ta.oninput = () => { draft.answers[s.key] = ta.value; saveDraft() };
-    box.appendChild(ta);
+    box.appendChild(ta); attachMic(ta);
     const next = el('button', 'primary', draft.step + 1 === n ? 'Fertig' : 'Weiter'); next.type = 'button';
     next.onclick = () => go(draft.step + 1);
     box.appendChild(next);
@@ -1309,6 +1327,59 @@ async function disablePush(){
   btn.disabled = false; renderPushCard();
 }
 
+
+// ---------- Voice input: dictation into text fields via the browser's speech recognition (Chrome: Google servers) ----------
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+let activeMic = null;
+const MIC_SVG = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>';
+function joinDictation(before, text){
+  text = text.trim(); if (!text) return before;
+  const startOfSentence = !before.trim() || /[.!?]\s*$/.test(before) || /\n\s*$/.test(before);
+  if (startOfSentence) text = text.charAt(0).toUpperCase() + text.slice(1);
+  const sep = !before || /\s$/.test(before) ? '' : ' ';
+  return before + sep + text;
+}
+function attachMic(ta){
+  if (!SR || ta.dataset.mic) return;
+  ta.dataset.mic = '1';
+  const wrap = el('div', 'vwrap'); ta.replaceWith(wrap); wrap.appendChild(ta);
+  const btn = el('button', 'mic'); btn.type = 'button'; btn.innerHTML = MIC_SVG;
+  btn.setAttribute('aria-label', 'Diktieren'); btn.setAttribute('aria-pressed', 'false');
+  const live = el('div', 'miclive hint'); live.setAttribute('aria-live', 'polite');
+  wrap.append(btn); wrap.after(live);
+  btn.onclick = () => activeMic && activeMic.ta === ta ? activeMic.stop() : startMic(ta, btn, live);
+}
+function startMic(ta, btn, live){
+  if (activeMic) activeMic.stop();
+  const rec = new SR();
+  rec.lang = 'de-DE'; rec.continuous = true; rec.interimResults = true;
+  let base = ta.value, finals = '';
+  const state = {ta, stop: () => { try { rec.stop() } catch {} }};
+  activeMic = state;
+  btn.classList.add('on'); btn.setAttribute('aria-pressed', 'true'); btn.setAttribute('aria-label', 'Diktat beenden');
+  live.textContent = 'Hört zu …';
+  rec.onresult = e => {
+    let interim = '';
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      const t = e.results[i][0].transcript;
+      if (e.results[i].isFinal) finals = joinDictation(finals, t); else interim += t;
+    }
+    ta.value = joinDictation(base, finals);
+    ta.dispatchEvent(new Event('input', {bubbles: true}));
+    live.textContent = interim ? '… ' + interim : 'Hört zu …';
+  };
+  rec.onerror = e => {
+    if (e.error === 'no-speech' || e.error === 'aborted') return;
+    msg(e.error === 'not-allowed' || e.error === 'service-not-allowed' ? 'Mikrofon ist für diese Seite nicht erlaubt.' : e.error === 'network' ? 'Spracherkennung braucht eine Internetverbindung.' : 'Spracherkennung: ' + e.error, 'err');
+  };
+  rec.onend = () => {
+    if (activeMic === state) activeMic = null;
+    btn.classList.remove('on'); btn.setAttribute('aria-pressed', 'false'); btn.setAttribute('aria-label', 'Diktieren');
+    live.textContent = '';
+  };
+  try { rec.start() } catch (e) { rec.onend(); msg('Spracherkennung konnte nicht starten.', 'err') }
+}
+
 // ---------- PIN lock: token, drafts, outbox and cache are encrypted with a key derived from the PIN ----------
 const u8b64 = u => { let t = ''; u.forEach(c => t += String.fromCharCode(c)); return btoa(t) };
 const b64u8 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -1412,6 +1483,7 @@ async function saveSettings(){
 }
 let current = 'heute';
 function tab(name){
+  if (activeMic) activeMic.stop();
   current = name;
   const navName = name === 'note' || name === 'symptom' ? 'heute' : name;
   $$('nav button').forEach(b => b.classList.toggle('on', b.dataset.tab === navName));
@@ -1467,6 +1539,7 @@ $('#pin-remove').onclick = async () => { if (confirm('PIN entfernen? Der Token l
 $('#pin-lock').onclick = () => lock.lockNow();
 $('#push-on').onclick = enablePush; $('#push-off').onclick = disablePush;
 initObs();
+['#n-text', '#s-text'].forEach(q => attachMic($(q)));
 let started = false;
 function startApp(){
   loadDraft();
