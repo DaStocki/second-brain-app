@@ -1,0 +1,329 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Second Brain</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg">
+<meta name="theme-color" content="#5b4bdb">
+<style>
+:root{--bg:#fafaf7;--fg:#1f2328;--mut:#6b7280;--card:#fff;--line:#e5e7eb;--acc:#5b4bdb;--ok:#15803d;--err:#b91c1c}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#16171a;--fg:#e8e8ea;--mut:#9aa0a6;--card:#202226;--line:#33363b;--acc:#8b7dff;--ok:#4ade80;--err:#f87171}}
+:root[data-theme="dark"]{--bg:#16171a;--fg:#e8e8ea;--mut:#9aa0a6;--card:#202226;--line:#33363b;--acc:#8b7dff;--ok:#4ade80;--err:#f87171}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.45 system-ui,sans-serif;padding:0 16px 80px}
+main{max-width:640px;margin:0 auto}
+h1{font-size:1.3rem;margin:18px 0 8px}h2{font-size:1.05rem;margin:22px 0 6px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin:10px 0}
+label.q{display:block;font-weight:600;margin-bottom:6px}
+.hint{color:var(--mut);font-size:.85rem;font-weight:400}
+.scale{display:flex;gap:4px;flex-wrap:wrap}
+.scale button{flex:1 0 8%;min-width:30px;padding:9px 0;border:1px solid var(--line);background:var(--bg);color:var(--fg);border-radius:8px;font-size:1rem}
+.scale button.on{background:var(--acc);color:#fff;border-color:var(--acc)}
+textarea,input[type=text],input[type=password],input[type=date]{width:100%;padding:10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--fg);font:inherit}
+textarea{min-height:64px}
+button.primary{background:var(--acc);color:#fff;border:0;border-radius:10px;padding:12px 18px;font-size:1rem;width:100%;margin-top:10px}
+button.primary:disabled{opacity:.5}
+nav{display:flex;gap:6px;position:sticky;top:0;background:var(--bg);padding:10px 0;z-index:2}
+nav button{flex:1;padding:10px;border:1px solid var(--line);background:var(--card);color:var(--fg);border-radius:10px}
+nav button.on{background:var(--acc);color:#fff;border-color:var(--acc)}
+#msg{position:fixed;left:16px;right:16px;bottom:16px;max-width:608px;margin:auto;padding:12px 14px;border-radius:10px;background:var(--card);border:1px solid var(--line);display:none}
+#msg.ok{border-color:var(--ok)}#msg.err{border-color:var(--err)}
+.row{display:flex;gap:8px;align-items:center}.row>*{flex:1}
+.pill{display:inline-block;padding:4px 10px;border:1px solid var(--line);border-radius:99px;margin:2px 4px 2px 0;background:var(--bg);color:var(--fg);font-size:.9rem}
+.pill.on{background:var(--acc);color:#fff;border-color:var(--acc)}
+.hidden{display:none}
+</style>
+</head>
+<body>
+<main>
+<nav>
+  <button data-tab="checkin" class="on">Check-in</button>
+  <button data-tab="note">Notiz</button>
+  <button data-tab="symptom">Beobachtung</button>
+  <button data-tab="settings">⚙︎</button>
+</nav>
+
+<section id="tab-checkin">
+  <h1>Abend-Check-in</h1>
+  <div class="card row">
+    <input type="date" id="ci-date">
+    <label><input type="checkbox" id="ci-kurz"> kurz (4 Fragen)</label>
+  </div>
+  <div id="ci-form"></div>
+  <button class="primary" id="ci-save">Speichern</button>
+</section>
+
+<section id="tab-note" class="hidden">
+  <h1>Notiz ins Journal</h1>
+  <div class="card row"><input type="date" id="n-date"><input type="text" id="n-time" placeholder="HH:MM"></div>
+  <div class="card"><textarea id="n-text" placeholder="Frei schreiben, ohne Schema"></textarea></div>
+  <button class="primary" id="n-save">Speichern</button>
+</section>
+
+<section id="tab-symptom" class="hidden">
+  <h1>Beobachtung</h1>
+  <div class="card">
+    <div class="hint">Art</div>
+    <span class="pill on" data-art="Belastung">Belastung</span><span class="pill" data-art="Ressource">Ressource</span>
+    <div class="hint" style="margin-top:8px">Bereich</div>
+    <div id="s-areas"></div>
+    <div class="hint" style="margin-top:8px">Was (in deinen Worten)</div>
+    <textarea id="s-text"></textarea>
+    <div class="hint" style="margin-top:8px">Stichwort (optional)</div>
+    <input type="text" id="s-kw" placeholder="z. B. Fokus, Hyperfokus, Reizüberflutung">
+    <div class="hint" style="margin-top:8px">Stärke 1–10 (optional, nur wenn du sie nennst)</div>
+    <div class="scale" id="s-scale"></div>
+    <div class="hint" style="margin-top:8px">Was half (optional)</div>
+    <input type="text" id="s-half">
+    <div class="hint" style="margin-top:8px">PTBS/kPTBS: nur festhalten, dass etwas war – keine Inhalte.</div>
+  </div>
+  <button class="primary" id="s-save">Speichern</button>
+</section>
+
+<section id="tab-settings" class="hidden">
+  <h1>Einstellungen</h1>
+  <div class="card">
+    <label class="q">Repo <span class="hint">owner/name</span></label>
+    <input type="text" id="set-repo" value="DaStocki/second-brain">
+    <label class="q" style="margin-top:10px">Branch</label>
+    <input type="text" id="set-branch" value="main">
+    <label class="q" style="margin-top:10px">GitHub-Token <span class="hint">fine-grained, nur dieses Repo, Contents: Read and write; bleibt nur auf diesem Gerät</span></label>
+    <input type="password" id="set-token" autocomplete="off">
+    <button class="primary" id="set-save">Speichern und testen</button>
+  </div>
+</section>
+</main>
+<div id="msg"></div>
+
+<script>
+"use strict";
+const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
+const store = {
+  get(k, d){ try { return localStorage.getItem(k) ?? d } catch { return d } },
+  set(k, v){ try { localStorage.setItem(k, v) } catch {} }
+};
+const cfg = () => ({repo: store.get('repo','DaStocki/second-brain'), branch: store.get('branch','main'), token: store.get('token','')});
+
+function msg(text, kind){
+  const m = $('#msg'); m.textContent = text; m.className = kind || ''; m.style.display = 'block';
+  clearTimeout(msg.t); msg.t = setTimeout(() => m.style.display = 'none', kind === 'err' ? 8000 : 3500);
+}
+const berlin = () => {
+  const p = Object.fromEntries(new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Berlin',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(new Date()).map(x=>[x.type,x.value]));
+  return {date:`${p.year}-${p.month}-${p.day}`, time:`${p.hour}:${p.minute}`};
+};
+
+// ---------- GitHub ----------
+const b64e = s => { const b = new TextEncoder().encode(s); let t=''; b.forEach(c=>t+=String.fromCharCode(c)); return btoa(t) };
+const b64d = s => { const t = atob(s.replace(/\n/g,'')); return new TextDecoder().decode(Uint8Array.from(t, c=>c.charCodeAt(0))) };
+async function gh(path, opts={}){
+  const c = cfg();
+  if (!c.token) throw new Error('Kein Token gesetzt (⚙︎).');
+  let r;
+  try {
+    r = await fetch(`https://api.github.com/repos/${c.repo}/${path}`, {...opts, headers:{Authorization:`Bearer ${c.token}`,Accept:'application/vnd.github+json',...(opts.headers||{})}});
+  } catch(e){ throw new Error(`api.github.com nicht erreichbar (offline oder von der Umgebung blockiert): ${e.message}`) }
+  if (r.status === 404 && opts.allow404) return null;
+  if (!r.ok) { const e = new Error(`GitHub ${r.status}`); e.status = r.status; e.body = await r.text().catch(()=>''); throw e }
+  return r.json();
+}
+// Read file, apply transform(text|null) -> text, commit; retry on conflict (409/422), never force.
+async function updateFile(path, transform, message){
+  const c = cfg();
+  for (let i=0; i<4; i++){
+    const cur = await gh(`contents/${path}?ref=${encodeURIComponent(c.branch)}`, {allow404:true});
+    const old = cur ? b64d(cur.content) : null;
+    const next = transform(old);
+    if (next === old) return false;
+    try {
+      await gh(`contents/${path}`, {method:'PUT', body: JSON.stringify({message, content:b64e(next), branch:c.branch, ...(cur?{sha:cur.sha}:{})})});
+      return true;
+    } catch(e){ if ((e.status===409 || e.status===422) && i<3) continue; throw e }
+  }
+}
+
+// ---------- Journal helpers ----------
+function splitFm(text){
+  const m = text.match(/^---\n([\s\S]*?)\n---\n?/);
+  return m ? {fm:m[1].split('\n'), body:text.slice(m[0].length)} : {fm:null, body:text};
+}
+function setFm(lines, key, val){
+  const i = lines.findIndex(l => l.startsWith(key+':'));
+  const line = `${key}: ${val}`.trimEnd();
+  if (i >= 0) { if (lines[i].slice(key.length+1).trim() === '') lines[i] = line; else lines[i] = line; } else lines.push(line);
+}
+function ensureDaily(lines){
+  const i = lines.findIndex(l => l.startsWith('tags:'));
+  if (i < 0) lines.splice(1, 0, 'tags: [daily]');
+}
+function newFile(date){ return {fm:[`datum: ${date}`,'tags: [daily]'], body:'\n'} }
+const join = ({fm, body}) => `---\n${fm.join('\n')}\n---\n${body.startsWith('\n')?'':'\n'}${body}`;
+
+function addToNotes(text, date, time, entry){
+  let f = text == null ? newFile(date) : splitFm(text);
+  if (!f.fm) f = {fm:[`datum: ${date}`,'tags: [daily]'], body:text};
+  ensureDaily(f.fm);
+  let body = f.body.replace(/\s*$/, '\n');
+  if (!/^## Notizen$/m.test(body)) body += '\n## Notizen\n';
+  body += `\n### ${time}\n${entry.trim()}\n`;
+  return join({fm:f.fm, body});
+}
+function addObservation(text, date, line){
+  let f = text == null ? newFile(date) : splitFm(text);
+  if (!f.fm) f = {fm:[`datum: ${date}`,'tags: [daily]'], body:text};
+  ensureDaily(f.fm);
+  let body = f.body;
+  const m = body.match(/^## Beobachtungen\n/m);
+  if (!m) {
+    const n = body.search(/^## Notizen$/m);
+    const sec = `## Beobachtungen\n${line}\n\n`;
+    body = n >= 0 ? body.slice(0,n) + sec + body.slice(n) : body.replace(/\s*$/, '\n') + '\n' + sec.trimEnd() + '\n';
+  } else {
+    const start = m.index + m[0].length;
+    const rest = body.slice(start);
+    const nx = rest.search(/^## /m);
+    const end = nx >= 0 ? start + nx : body.length;
+    const sectionText = body.slice(start, end).replace(/\s*$/, '\n');
+    body = body.slice(0, start) + sectionText + line + '\n' + (nx >= 0 ? '\n' : '') + body.slice(end);
+  }
+  return join({fm:f.fm, body});
+}
+
+// ---------- Check-in ----------
+const SCALES = [
+  ['stimmung','Wie war deine Stimmung heute?','1 = sehr schlecht, 10 = sehr gut'],
+  ['stress','Wie angespannt oder gestresst warst du?','1 = gar nicht, 10 = extrem'],
+  ['energie','Wie viel Energie hattest du?','1 = völlig erschöpft / Fatigue, 10 = voller Energie'],
+  ['beschwerden','Wie stark waren körperliche Beschwerden (MS-Symptome, Schmerz)?','1 = keine, 10 = sehr stark'],
+  ['fokus','Wie gut konntest du dich auf das konzentrieren, was du vorhattest?','1 = gar nicht, 10 = sehr gut'],
+  ['arbeitsbelastung','Wie belastend war die Arbeit heute?','1 = gar nicht, 10 = überfordert'],
+  ['soziale_batterie','Wie voll ist deine soziale Batterie jetzt am Abend?','1 = leer, 10 = voll'],
+  ['reizueberflutung','Wie stark war die Reizüberflutung heute?','1 = gar nicht, 10 = sehr stark'],
+  ['verbundenheit','Wie verbunden hast du dich mit anderen Menschen gefühlt?','1 = gar nicht, 10 = sehr']
+];
+const TEXTS = [
+  ['ereignis','Was war das wichtigste Ereignis heute?','Wichtigstes Ereignis'],
+  ['energiekosten','Was hat dich heute Energie gekostet?','Energie gekostet'],
+  ['gutgetan','Was hat dir heute gutgetan?','Gutgetan'],
+  ['dankbar','Gibt es etwas, wofür du dankbar bist oder worauf du stolz bist? (optional)','Dankbar / Stolz']
+];
+const KURZ = new Set(['stimmung','energie','beschwerden','ereignis']);
+const ci = {};
+function buildScale(container, onPick, value){
+  container.innerHTML = '';
+  for (let n=1; n<=10; n++){
+    const b = document.createElement('button'); b.textContent = n; b.type = 'button';
+    b.onclick = () => { const was = b.classList.contains('on'); [...container.children].forEach(x=>x.classList.remove('on')); if(!was){b.classList.add('on'); onPick(n)} else onPick(null) };
+    container.appendChild(b);
+  }
+}
+function renderCheckin(){
+  const kurz = $('#ci-kurz').checked, f = $('#ci-form'); f.innerHTML = '';
+  let k = 0; const total = kurz ? 4 : 13;
+  SCALES.forEach(([key,q,h]) => {
+    if (kurz && !KURZ.has(key)) return;
+    k++;
+    const d = document.createElement('div'); d.className = 'card';
+    d.innerHTML = `<label class="q">${k}/${total} ${q}<br><span class="hint">${h}</span></label><div class="scale"></div>`;
+    f.appendChild(d); buildScale(d.querySelector('.scale'), v => ci[key] = v);
+    if (key==='arbeitsbelastung') d.insertAdjacentHTML('beforeend','<div class="hint">Nicht angetippt = übersprungen (z. B. freier Tag).</div>');
+  });
+  TEXTS.forEach(([key,q]) => {
+    if (kurz && !KURZ.has(key)) return;
+    k++;
+    const d = document.createElement('div'); d.className = 'card';
+    d.innerHTML = `<label class="q">${k}/${total} ${q}</label><textarea data-k="${key}"></textarea>`;
+    d.querySelector('textarea').value = ci[key] || '';
+    d.querySelector('textarea').oninput = e => ci[key] = e.target.value;
+    f.appendChild(d);
+  });
+}
+function applyCheckin(old, date, kurz){
+  let f = old == null ? newFile(date) : splitFm(old);
+  if (!f.fm) f = {fm:[`datum: ${date}`,'tags: [daily]'], body:old};
+  if (/^# Check-in/m.test(f.body) || f.fm.some(l=>l.startsWith('typ: checkin'))) throw new Error(`Für ${date} gibt es schon einen Check-in.`);
+  ensureDaily(f.fm);
+  setFm(f.fm,'typ','checkin');
+  if (kurz) setFm(f.fm,'variante','kurz');
+  SCALES.forEach(([key]) => setFm(f.fm, key, ci[key] ?? ''));
+  const sections = TEXTS.map(([key,,title]) => `## ${title}\n${(ci[key]||'').trim()}\n`).join('\n');
+  const block = `# Check-in ${date}\n\n${sections}\n`;
+  let body = f.body.replace(/^\n+/, '');
+  const n = body.search(/^## (Beobachtungen|Notizen)$/m);
+  body = n >= 0 ? '\n' + block + body.slice(n) : '\n' + block;
+  return join({fm:f.fm, body});
+}
+async function saveCheckin(){
+  const date = $('#ci-date').value, kurz = $('#ci-kurz').checked;
+  const hasAny = SCALES.some(([k])=>ci[k]) || TEXTS.some(([k])=>(ci[k]||'').trim());
+  if (!date || !hasAny) return msg('Nichts auszufüllen.','err');
+  $('#ci-save').disabled = true;
+  try {
+    await updateFile(`journal/${date}.md`, old => applyCheckin(old, date, kurz), `checkin: ${date}`);
+    Object.keys(ci).forEach(k=>delete ci[k]); renderCheckin();
+    msg('Gespeichert. Gute Nacht! (Ingest ins Wiki macht Mnemo.)','ok');
+  } catch(e){ msg(e.message + (e.body?` – ${e.body.slice(0,120)}`:''),'err') }
+  $('#ci-save').disabled = false;
+}
+
+// ---------- Notiz ----------
+async function saveNote(){
+  const date = $('#n-date').value, time = $('#n-time').value.trim(), text = $('#n-text').value;
+  if (!text.trim()) return msg('Leere Notiz.','err');
+  $('#n-save').disabled = true;
+  try {
+    await updateFile(`journal/${date}.md`, old => addToNotes(old, date, time, text), `journal: ${date}`);
+    $('#n-text').value=''; msg('Gespeichert.','ok');
+  } catch(e){ msg(e.message,'err') }
+  $('#n-save').disabled = false;
+}
+
+// ---------- Beobachtung ----------
+const AREAS = ['ADHS','Autismus','PTBS/kPTBS','Depression','Körper','unklar'];
+const obs = {art:'Belastung', areas:new Set(), stark:null};
+function initObs(){
+  const a = $('#s-areas');
+  AREAS.forEach(x => { const p = document.createElement('span'); p.className='pill'; p.textContent=x; p.onclick=()=>{ obs.areas.has(x)?obs.areas.delete(x):obs.areas.add(x); p.classList.toggle('on') }; a.appendChild(p) });
+  $$('[data-art]').forEach(p => p.onclick = () => { obs.art = p.dataset.art; $$('[data-art]').forEach(q=>q.classList.toggle('on', q===p)) });
+  buildScale($('#s-scale'), v => obs.stark = v);
+}
+async function saveObs(){
+  const date = berlin().date, time = berlin().time;
+  const was = $('#s-text').value.trim();
+  if (!was) return msg('Was ist passiert?','err');
+  const area = obs.areas.size ? [...obs.areas].join(' + ') : 'unklar';
+  const kw = $('#s-kw').value.trim(), half = $('#s-half').value.trim();
+  let line = `- ${time} · ${obs.art} · ${area}${kw?` (${kw})`:''} · ${was}`;
+  if (obs.stark) line += `; Stärke ${obs.stark}/10`;
+  if (half) line += `; half: ${half}`;
+  $('#s-save').disabled = true;
+  try {
+    await updateFile(`journal/${date}.md`, old => addObservation(old, date, line), `beobachtung: ${date}`);
+    $('#s-text').value=$('#s-kw').value=$('#s-half').value=''; msg('Gespeichert (nur Journal).','ok');
+  } catch(e){ msg(e.message,'err') }
+  $('#s-save').disabled = false;
+}
+
+// ---------- Settings & tabs ----------
+async function saveSettings(){
+  store.set('repo',$('#set-repo').value.trim()); store.set('branch',$('#set-branch').value.trim()); store.set('token',$('#set-token').value.trim());
+  try { const r = await gh(''); msg(`Verbunden mit ${r.full_name}${r.private?' (privat)':''}.`,'ok') } catch(e){ msg('Test fehlgeschlagen: '+e.message,'err') }
+}
+function tab(name){
+  $$('nav button').forEach(b => b.classList.toggle('on', b.dataset.tab===name));
+  ['checkin','note','symptom','settings'].forEach(t => $('#tab-'+t).classList.toggle('hidden', t!==name));
+}
+$$('nav button').forEach(b => b.onclick = () => tab(b.dataset.tab));
+$('#ci-kurz').onchange = renderCheckin;
+$('#ci-save').onclick = saveCheckin; $('#n-save').onclick = saveNote; $('#s-save').onclick = saveObs; $('#set-save').onclick = saveSettings;
+const now = berlin();
+$('#ci-date').value = now.date; $('#n-date').value = now.date; $('#n-time').value = now.time;
+$('#set-repo').value = cfg().repo; $('#set-branch').value = cfg().branch; $('#set-token').value = cfg().token;
+if (!cfg().token) tab('settings');
+initObs(); renderCheckin();
+if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(()=>{});
+</script>
+</body>
+</html>
