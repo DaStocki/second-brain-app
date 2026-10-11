@@ -26,7 +26,7 @@ textarea{min-height:64px}
 button.primary{background:var(--acc);color:#fff;border:0;border-radius:10px;padding:12px 18px;font-size:1rem;width:100%;margin-top:10px}
 button.primary:disabled{opacity:.5}
 nav{display:flex;gap:6px;position:sticky;top:0;background:var(--bg);padding:10px 0;z-index:2}
-nav button{flex:1 1 auto;padding:10px 6px;font-size:.9rem;border:1px solid var(--line);background:var(--card);color:var(--fg);border-radius:10px}
+nav button{flex:1 1 auto;padding:10px 4px;font-size:.82rem;border:1px solid var(--line);background:var(--card);color:var(--fg);border-radius:10px}
 nav button.on{background:var(--acc);color:#fff;border-color:var(--acc)}
 #msg{position:fixed;left:16px;right:16px;bottom:16px;max-width:608px;margin:auto;padding:12px 14px;border-radius:10px;background:var(--card);border:1px solid var(--line);display:none}
 #msg.ok{border-color:var(--ok)}#msg.err{border-color:var(--err)}
@@ -34,6 +34,11 @@ nav button.on{background:var(--acc);color:#fff;border-color:var(--acc)}
 .pill{display:inline-block;padding:4px 10px;border:1px solid var(--line);border-radius:99px;margin:2px 4px 2px 0;background:var(--bg);color:var(--fg);font-size:.9rem}
 .pill.on{background:var(--acc);color:#fff;border-color:var(--acc)}
 .hidden{display:none}
+.bubble{margin:10px 0;padding:10px 12px;border-radius:12px;overflow-wrap:anywhere}
+.bubble.user{background:var(--acc);color:#fff;margin-left:15%}
+.bubble.assistant{background:var(--card);border:1px solid var(--line)}
+.bubble.status{color:var(--mut);font-size:.85rem;padding:4px 2px}
+.answer p{margin:.3em 0}.answer ul{margin:.3em 0;padding-left:1.2em}.answer h3{font-size:1rem;margin:.6em 0 .2em}
 #lock{display:none}
 body.locked #lock{display:flex;min-height:100vh;align-items:center;justify-content:center}
 body.locked main{display:none}
@@ -87,6 +92,7 @@ a.plink{color:var(--acc)}
   <button data-tab="checkin">Check-in</button>
   <button data-tab="offen">Offen</button>
   <button data-tab="verlauf">Verlauf</button>
+  <button data-tab="fragen">Fragen</button>
   <button data-tab="settings" aria-label="Einstellungen">⚙︎</button>
 </nav>
 
@@ -147,6 +153,14 @@ a.plink{color:var(--acc)}
   <div id="v-charts" class="hint"></div>
 </section>
 
+<section id="tab-fragen" class="hidden">
+  <div class="row"><h1>Fragen</h1><button class="ghost" id="a-new" style="flex:0 0 auto">Neue Unterhaltung</button></div>
+  <div class="hint">Antwortet aus Wiki und Journal. Jede Frage geht mit den gelesenen Seiten an die Claude-API und kostet ein paar Cent.</div>
+  <div id="a-log"></div>
+  <div class="card"><textarea id="a-input" rows="3" placeholder="z. B. Wann ist der nächste Termin für den Picanto?"></textarea>
+  <button class="primary" id="a-send">Fragen</button></div>
+</section>
+
 <section id="tab-settings" class="hidden">
   <h1>Einstellungen</h1>
   <div class="card">
@@ -158,6 +172,8 @@ a.plink{color:var(--acc)}
     <input type="text" id="set-vault">
     <label class="q" style="margin-top:10px">GitHub-Token <span class="hint">fine-grained, nur dieses Repo, Contents: Read and write; bleibt nur auf diesem Gerät</span></label>
     <input type="password" id="set-token" autocomplete="off">
+    <label class="q" style="margin-top:10px">Claude-API-Schlüssel <span class="hint">für „Fragen“; von console.anthropic.com, bleibt nur auf diesem Gerät</span></label>
+    <input type="password" id="set-akey" autocomplete="off" placeholder="sk-ant-…">
     <button class="primary" id="set-save">Speichern und testen</button>
   </div>
   <div class="card">
@@ -710,6 +726,118 @@ function metricChart(rows, key, label, start, end){
   return card;
 }
 
+
+// ---------- Fragen: answers from the vault via the Claude API (tools search and read the repo snapshot) ----------
+const ASK_MODEL = 'claude-opus-5-5';
+let sdkPromise = null;
+const loadSdk = () => sdkPromise ??= import('./vendor/anthropic-sdk.mjs').then(m => m.default);
+let askMessages = [];
+const ASK_TOOLS = [
+  {name: 'search_vault', description: 'Volltextsuche (ohne Groß-/Kleinschreibung) über alle Wiki-Seiten (wiki/) und Journal-Einträge (journal/). Alle Wörter der Anfrage müssen in derselben Zeile vorkommen. Liefert bis zu 40 Treffer als "Pfad:Zeile: Text". Für Namen, Daten, Stichwörter.', strict: true,
+   input_schema: {type: 'object', properties: {query: {type: 'string', description: 'Ein oder mehrere Suchwörter'}}, required: ['query'], additionalProperties: false}},
+  {name: 'read_files', description: 'Liest ganze Dateien aus dem Vault, z. B. "wiki/projects/auto-kia-picanto.md" oder "journal/2026-10-09.md". Bis zu 8 Pfade pro Aufruf.', strict: true,
+   input_schema: {type: 'object', properties: {paths: {type: 'array', items: {type: 'string'}, description: 'Dateipfade relativ zum Repo'}}, required: ['paths'], additionalProperties: false}}
+];
+function runTool(name, input, files){
+  if (name === 'search_vault') {
+    const words = String(input.query || '').toLowerCase().split(/\s+/).filter(Boolean);
+    if (!words.length) return 'Leere Suche.';
+    const hits = [];
+    for (const f of files) { f.text.split('\n').forEach((l, i) => { const low = l.toLowerCase(); if (hits.length < 40 && words.every(w => low.includes(w))) hits.push(`${f.path}:${i + 1}: ${l.slice(0, 300)}`) }) }
+    return hits.length ? hits.join('\n') : 'Keine Treffer.';
+  }
+  if (name === 'read_files') {
+    return (input.paths || []).slice(0, 8).map(p => { const f = files.find(x => x.path === p || x.path === p + '.md' || x.path.endsWith('/' + p) || x.path.endsWith('/' + p + '.md')); return f ? `=== ${f.path} ===\n${f.text}` : `=== ${p} ===\n(nicht gefunden)` }).join('\n\n');
+  }
+  return 'Unbekanntes Werkzeug.';
+}
+function askSystem(files){
+  const index = (files.find(f => f.path === 'wiki/index.md') || {text: ''}).text;
+  return [
+    {type: 'text', text: `Du bist Mnemo, der Assistent für ein persönliches Second Brain (Obsidian-Vault auf Deutsch). Beantworte Fragen ausschließlich aus dem Vault: Wiki-Seiten in wiki/ (synthetisiertes Wissen, Quellenseiten wiki/quelle-*.md) und Tagesjournal in journal/YYYY-MM-DD.md (Check-in-Werte, Notizen, Beobachtungen).
+
+Vorgehen: Nutze search_vault und read_files, bis du die Antwort belegen kannst. Lies die relevanten Seiten, statt aus Suchtreffern zu raten.
+
+Antwort: Deutsch, knapp, Stichpunkte statt langer Absätze. Verweise auf Seiten als [[seitenname]] (Dateiname ohne .md) und auf Journaltage als [[YYYY-MM-DD]]. Nenne Widersprüche ausdrücklich. Wenn der Vault etwas nicht hergibt, sag das klar, statt zu raten. Keine Diagnosen oder medizinischen Ratschläge über das hinaus, was im Vault steht. Bei PTBS/kPTBS-Einträgen keine Inhalte wiedergeben.
+
+Heutiges Datum: siehe Nutzernachricht. Hier der Katalog aller Wiki-Seiten (wiki/index.md):
+
+${index}`, cache_control: {type: 'ephemeral'}}
+  ];
+}
+function renderAnswerText(text){
+  const box = el('div', 'answer');
+  let list = null;
+  for (const raw of text.split('\n')) {
+    const line = raw.trimEnd();
+    const m = line.match(/^\s*[-*] (.*)$/);
+    if (m) { if (!list) { list = el('ul'); box.appendChild(list) } const li = el('li'); inlineMd(li, m[1]); list.appendChild(li); continue }
+    list = null;
+    if (!line.trim()) continue;
+    const h = line.match(/^#{1,4} (.*)$/);
+    const p = el(h ? 'h3' : 'p'); inlineMd(p, h ? h[1] : line); box.appendChild(p);
+  }
+  return box;
+}
+function inlineMd(parent, s){
+  const files = repo ? repo.files : [];
+  const re = /\*\*(.+?)\*\*|\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g; let last = 0, m;
+  while ((m = re.exec(s))) {
+    parent.append(s.slice(last, m.index));
+    if (m[1]) parent.appendChild(el('strong', null, m[1]));
+    else {
+      const name = m[2], f = files.find(x => x.path.endsWith('/' + name + '.md'));
+      if (f) { const a = el('a', 'plink', m[3] || name); a.href = obsidianUrl(f.path); parent.appendChild(a) } else parent.append(m[3] || name);
+    }
+    last = re.lastIndex;
+  }
+  parent.append(s.slice(last));
+}
+function askBubble(role, node){ const d = el('div', 'bubble ' + role); if (typeof node === 'string') d.textContent = node; else d.appendChild(node); $('#a-log').appendChild(d); d.scrollIntoView({block: 'end', behavior: 'smooth'}); return d }
+async function ask(){
+  const q = $('#a-input').value.trim(); if (!q) return;
+  const key = lock.get('anthropic-key', '');
+  if (!key) return msg('Erst einen Claude-API-Schlüssel unter ⚙︎ eintragen.', 'err');
+  $('#a-input').value = ''; $('#a-send').disabled = true;
+  askBubble('user', q);
+  const status = askBubble('status', 'Lade Vault …');
+  try {
+    const [Anthropic, r] = await Promise.all([loadSdk(), loadRepo()]);
+    const files = r.files;
+    const client = new Anthropic({apiKey: key, dangerouslyAllowBrowser: true});
+    const {date, time} = berlin();
+    askMessages.push({role: 'user', content: `Heute ist ${wd(date)}, ${fmtDate(date)}, ${time} Uhr (Europe/Berlin).\n\n${q}`});
+    let used = 0;
+    for (let turn = 0; turn < 12; turn++) {
+      status.textContent = turn ? `Lese im Vault … (${used} Schritte)` : 'Denke nach …';
+      const res = await client.beta.messages.create({
+        model: ASK_MODEL, max_tokens: 16000,
+        betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default',
+        system: askSystem(files), tools: ASK_TOOLS, messages: askMessages
+      });
+      askMessages.push({role: 'assistant', content: res.content});
+      if (res.stop_reason === 'refusal') { status.remove(); askBubble('assistant', 'Diese Frage wurde abgelehnt. Formuliere sie anders oder frag Mnemo in der Sitzung.'); askMessages = []; break }
+      if (res.stop_reason === 'tool_use') {
+        const results = res.content.filter(b => b.type === 'tool_use').map(b => { used++; status.textContent = b.name === 'search_vault' ? `Suche „${b.input.query}“ …` : `Lese ${(b.input.paths || []).join(', ').slice(0, 80)} …`; return {type: 'tool_result', tool_use_id: b.id, content: runTool(b.name, b.input, files)} });
+        askMessages.push({role: 'user', content: results});
+        continue;
+      }
+      status.remove();
+      const text = res.content.filter(b => b.type === 'text').map(b => b.text).join('\n').trim();
+      askBubble('assistant', renderAnswerText(text || '(keine Antwort)'));
+      if (res.stop_reason === 'max_tokens') askBubble('status', 'Antwort wurde abgeschnitten.');
+      break;
+    }
+    if (status.isConnected) { status.remove(); askBubble('status', 'Zu viele Suchschritte ohne Antwort – bitte genauer fragen.'); askMessages = [] }
+  } catch(e){
+    status.remove(); askMessages = [];
+    const s = e.status;
+    askBubble('status', s === 401 ? 'API-Schlüssel ungültig (⚙︎).' : s === 429 ? 'Zu viele Anfragen – kurz warten.' : s === 400 && /credit/i.test(e.message) ? 'Kein Guthaben auf dem API-Konto.' : e.offline || e.name === 'APIConnectionError' ? 'Offline – Fragen geht nur mit Netz.' : 'Fehler: ' + e.message);
+    askBubble('status', 'Die Unterhaltung wurde neu gestartet.');
+  }
+  $('#a-send').disabled = false;
+}
+
 // ---------- PIN lock: token, drafts, outbox and cache are encrypted with a key derived from the PIN ----------
 const u8b64 = u => { let t = ''; u.forEach(c => t += String.fromCharCode(c)); return btoa(t) };
 const b64u8 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -721,7 +849,7 @@ const crypt = {
   async enc(key, text){ const iv = crypto.getRandomValues(new Uint8Array(12)); const ct = new Uint8Array(await crypto.subtle.encrypt({name: 'AES-GCM', iv}, key, new TextEncoder().encode(text))); return u8b64(iv) + '.' + u8b64(ct) },
   async dec(key, s){ const [iv, ct] = s.split('.').map(b64u8); return new TextDecoder().decode(await crypto.subtle.decrypt({name: 'AES-GCM', iv}, key, ct)) }
 };
-const SECURE_KEYS = ['token', 'ci-draft', 'outbox', 'n-draft'];
+const SECURE_KEYS = ['token', 'ci-draft', 'outbox', 'n-draft', 'anthropic-key'];
 const lock = {
   key: null, mem: {},
   enabled(){ return !!store.get('pin', '') },
@@ -807,7 +935,7 @@ let hiddenAt = 0;
 
 // ---------- Settings & tabs ----------
 async function saveSettings(){
-  store.set('repo',$('#set-repo').value.trim()); store.set('branch',$('#set-branch').value.trim()); store.set('vault',$('#set-vault').value.trim() || 'second-brain'); lock.set('token',$('#set-token').value.trim());
+  store.set('repo',$('#set-repo').value.trim()); store.set('branch',$('#set-branch').value.trim()); store.set('vault',$('#set-vault').value.trim() || 'second-brain'); lock.set('token',$('#set-token').value.trim()); lock.set('anthropic-key',$('#set-akey').value.trim());
   repo = null;
   try { const r = await gh(''); msg(`Verbunden mit ${r.full_name}${r.private?' (privat)':''}.`,'ok'); flushOutbox() } catch(e){ msg('Test fehlgeschlagen: '+e.message,'err') }
 }
@@ -816,11 +944,12 @@ function tab(name){
   current = name;
   const navName = name === 'note' || name === 'symptom' ? 'heute' : name;
   $$('nav button').forEach(b => b.classList.toggle('on', b.dataset.tab === navName));
-  ['heute','checkin','note','symptom','offen','verlauf','settings'].forEach(t => $('#tab-'+t).classList.toggle('hidden', t !== name));
+  ['heute','checkin','note','symptom','offen','verlauf','fragen','settings'].forEach(t => $('#tab-'+t).classList.toggle('hidden', t !== name));
   if (name === 'heute') renderHeute();
   if (name === 'checkin') renderCheckin();
   if (name === 'offen') showOffen();
   if (name === 'verlauf') showVerlauf();
+  if (name === 'fragen') { loadSdk().catch(() => {}); setTimeout(() => $('#a-input').focus(), 50) }
   if (name === 'note') { const n = berlin(); $('#n-date').value = n.date; $('#n-time').value = n.time; $('#n-text').value = lock.get('n-draft', ''); setTimeout(() => $('#n-text').focus(), 50) }
   window.scrollTo(0, 0);
 }
@@ -831,6 +960,8 @@ $('#ci-kurz').onchange = e => { draft.kurz = e.target.checked; draft.step = 0; s
 $('#ci-reset').onclick = () => { if (confirm('Entwurf verwerfen?')) { lock.set('ci-draft', 'null'); loadDraft(); renderCheckin() } };
 $('#n-text').oninput = e => lock.set('n-draft', e.target.value);
 $('#o-reload').onclick = () => showOffen(true);
+$('#a-send').onclick = ask;
+$('#a-new').onclick = () => { askMessages = []; $('#a-log').innerHTML = '' };
 $('#n-save').onclick = saveNote; $('#s-save').onclick = saveObs; $('#set-save').onclick = saveSettings;
 $('#set-repo').value = cfg().repo; $('#set-branch').value = cfg().branch; $('#set-vault').value = store.get('vault', 'second-brain');
 window.addEventListener('online', flushOutbox);
@@ -850,7 +981,7 @@ initObs();
 let started = false;
 function startApp(){
   loadDraft();
-  $('#set-token').value = cfg().token;
+  $('#set-token').value = cfg().token; $('#set-akey').value = lock.get('anthropic-key', '');
   renderPinCard();
   if (!started) { started = true; tab(cfg().token ? 'heute' : 'settings') } else tab(current);
   flushOutbox();
