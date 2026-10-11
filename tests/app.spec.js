@@ -128,6 +128,7 @@ test('Datumserkennung: Unteraufgaben erben, Vergangenheitsdaten zählen nicht', 
 test('Neue Aufgabe: Seitensuche (Umlaute egal), Datum, ein Commit', async ({ page }) => {
   const gh = await open(page);
   await page.click('[data-go=newtask]');
+  await expect(page.locator('#t-text')).toBeFocused(); // the form focuses the text after 50 ms; typing earlier can land there
   await expect(page.locator('#t-page-list .pl-item')).toHaveCount(1); // suggestion: "Ich"
   await page.fill('#t-page-q', 'muller');
   await expect(page.locator('#t-page-list .pl-item')).toHaveText([/Jana Müller/]);
@@ -196,7 +197,7 @@ test('Design und Schriftgröße bleiben erhalten, kein seitliches Scrollen', asy
   await page.reload();
   expect(await page.evaluate(() => document.documentElement.dataset.theme)).toBe('steel');
   expect(await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--zoom').trim())).toBe('1.3');
-  for (const t of ['heute', 'checkin', 'offen', 'verlauf', 'settings']) {
+  for (const t of ['heute', 'checkin', 'offen', 'kalender', 'verlauf', 'settings']) {
     await page.click(`nav button[data-tab=${t}]`);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   }

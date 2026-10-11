@@ -36,6 +36,7 @@
   <button data-tab="heute" class="on">Heute</button>
   <button data-tab="checkin">Check-in</button>
   <button data-tab="offen">Offen</button>
+  <button data-tab="kalender">Kalender</button>
   <button data-tab="verlauf">Verlauf</button>
   <button data-tab="settings" aria-label="Einstellungen">⚙︎</button>
 </nav>
@@ -105,6 +106,14 @@
   <div class="row"><h1>Offene Aufgaben</h1><button class="ghost" id="o-new" data-go="newtask" style="flex:0 0 auto">+ Neu</button><button class="ghost" id="o-reload" style="flex:0 0 auto">Neu laden</button></div>
   <div id="o-filter"></div>
   <div id="o-list" class="hint">Noch nicht geladen.</div>
+</section>
+
+<section id="tab-kalender" class="hidden">
+  <div class="calhead"><button class="ghost calnav" id="k-prev" aria-label="Voriger Monat">‹</button><h1 id="k-month">Kalender</h1><button class="ghost calnav" id="k-next" aria-label="Nächster Monat">›</button></div>
+  <div class="calweek" aria-hidden="true"><span>Mo</span><span>Di</span><span>Mi</span><span>Do</span><span>Fr</span><span>Sa</span><span>So</span></div>
+  <div id="k-grid" class="calgrid"></div>
+  <div class="hint callegend"><span><i class="mk task"></i>Aufgabe</span><span><i class="mk note"></i>Notiz</span><span><i class="mood mood-low"></i><i class="mood mood-mid"></i><i class="mood mood-high"></i>Stimmung</span></div>
+  <div id="k-day"></div>
 </section>
 
 <section id="tab-verlauf" class="hidden">
@@ -498,6 +507,11 @@ const wd = iso => WD[new Date(iso + 'T00:00:00Z').getUTCDay()];
 function fmtDate(d){ return `${d.slice(8,10)}.${d.slice(5,7)}.${d.slice(0,4)}` }
 function el(tag, cls, text){ const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e }
 const obsidianUrl = path => `obsidian://open?vault=${encodeURIComponent(store.get('vault', 'second-brain'))}&file=${encodeURIComponent(path.replace(/\.md$/, ''))}`;
+function journalNotes(j){
+  const sec = j.text.split(/^## Notizen\s*$/m)[1]; if (!sec) return [];
+  return sec.split(/^### /m).slice(1).map(chunk => { const [head, ...rest] = chunk.split('\n'); return {date: j.date, time: head.trim(), body: rest.join('\n').split(/^## /m)[0].trim()} }).filter(n => n.body);
+}
+function journalObs(j){ const sec = j.text.split(/^## Beobachtungen\s*$/m)[1]; return sec ? sec.split(/^## /m)[0].split('\n').filter(l => /^- /.test(l)).map(l => l.slice(2).trim()) : [] }
 // ---------- Offen: parsing ----------
 const MONTHS = {januar:1,februar:2,'märz':3,maerz:3,april:4,mai:5,juni:6,juli:7,august:8,september:9,oktober:10,november:11,dezember:12};
 const KW_DUE = /(bis|spätestens|am|um den|vor dem|ab|zum|termin|nächster termin|merken:?|den)\s*\**\s*$/i;
@@ -648,10 +662,44 @@ function taskCard(t, late, after){
   const a = el('a', 'plink', t.page); a.href = obsidianUrl(t.path); a.onclick = e => e.stopPropagation();
   meta.append(a, ` · ${t.area}`);
   body.appendChild(meta);
+  if (t.due) {
+    meta.append(' · ');
+    const kb = el('button', 'calbtn', 'In Kalender'); kb.type = 'button'; kb.setAttribute('aria-expanded', 'false');
+    const box = el('div', 'calx hidden');
+    const g = el('a', 'ghost', 'Google Kalender'); g.href = googleCalUrl(t); g.target = '_blank'; g.rel = 'noopener';
+    const f = el('button', 'ghost', 'Als .ics-Datei'); f.type = 'button'; f.onclick = e => { e.stopPropagation(); downloadIcs(t) };
+    g.onclick = e => e.stopPropagation();
+    box.append(g, f);
+    kb.onclick = e => { e.stopPropagation(); const show = box.classList.toggle('hidden') === false; kb.setAttribute('aria-expanded', String(show)) };
+    meta.append(kb); body.appendChild(box);
+  }
   body.onclick = () => txt.classList.toggle('open');
   row.append(cb, body); card.appendChild(row);
   return card;
 }
+// ---------- Export to a calendar: all-day event on the due date ----------
+const ymd = d => d.replace(/-/g, '');
+function googleCalUrl(t){
+  const q = new URLSearchParams({action: 'TEMPLATE', text: t.text.slice(0, 200), dates: `${ymd(t.due)}/${ymd(addDays(t.due, 1))}`, details: `Aufgabe auf ${t.title}\n${obsidianUrl(t.path)}`});
+  return 'https://calendar.google.com/calendar/render?' + q;
+}
+const icsEsc = v => v.replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\r?\n/g, '\\n');
+// RFC 5545: lines are folded at 75 octets, continuation lines start with a space
+function icsFold(line){ const out = []; let cur = '', n = 0; for (const ch of line) { const b = new TextEncoder().encode(ch).length; if (n + b > (out.length ? 74 : 75)) { out.push(cur); cur = ''; n = 0 } cur += ch; n += b } out.push(cur); return out.join('\r\n ') }
+function icsFor(t){
+  let h = 0; for (const c of t.path + '|' + t.text) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+  const stamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d+/, '');
+  return ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//second-brain-app//DE', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH', 'BEGIN:VEVENT',
+    `UID:${h.toString(36)}-${ymd(t.due)}@second-brain-app`, `DTSTAMP:${stamp}`, `DTSTART;VALUE=DATE:${ymd(t.due)}`, `DTEND;VALUE=DATE:${ymd(addDays(t.due, 1))}`,
+    `SUMMARY:${icsEsc(t.text.slice(0, 200))}`, `DESCRIPTION:${icsEsc(`Aufgabe auf ${t.title}\n${obsidianUrl(t.path)}`)}`, 'TRANSP:TRANSPARENT', 'END:VEVENT', 'END:VCALENDAR']
+    .map(icsFold).join('\r\n') + '\r\n';
+}
+function downloadIcs(t){
+  const url = URL.createObjectURL(new Blob([icsFor(t)], {type: 'text/calendar;charset=utf-8'}));
+  const a = el('a'); a.href = url; a.download = `${t.due}-${t.page}.ics`; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
+}
+
 async function setDue(t, iso, after){
   const today = berlin().date;
   try {
@@ -714,14 +762,85 @@ async function renderHeute(){
   tasks.forEach(t => due.appendChild(taskCard(t, t.due < today, () => renderHeute())));
   notes.innerHTML = '';
   notes.appendChild(el('h2', null, 'Letzte Notizen'));
-  const recent = [];
-  js.filter(j => j.date >= addDays(today, -3)).forEach(j => {
-    const sec = j.text.split(/^## Notizen\s*$/m)[1]; if (!sec) return;
-    sec.split(/^### /m).slice(1).forEach(chunk => { const [head, ...rest] = chunk.split('\n'); const body = rest.join('\n').split(/^## /m)[0].trim(); if (body) recent.push({date: j.date, time: head.trim(), body}) });
-  });
+  const recent = js.filter(j => j.date >= addDays(today, -3)).flatMap(j => journalNotes(j));
   recent.sort((a, b) => (b.date + b.time).localeCompare(a.date + a.time));
   if (!recent.length) notes.appendChild(el('div', 'hint', 'Keine Notizen in den letzten Tagen.'));
   recent.slice(0, 5).forEach(n => { const c = el('div', 'card'); c.append(el('div', 'hint', `${wd(n.date)} ${fmtDate(n.date).slice(0, 6)} · ${n.time}`), el('div', 'ttext', n.body)); c.onclick = () => c.lastChild.classList.toggle('open'); notes.appendChild(c) });
+}
+
+// ---------- Kalender: tasks by due date, check-in mood, notes and observations per day ----------
+const MONTH_NAMES = ['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'];
+let calMonth = null, calDay = null;
+async function showKalender(){
+  const today = berlin().date;
+  if (!calMonth) calMonth = today.slice(0, 7);
+  if (!calDay) calDay = today;
+  if (!repo) { renderKalender(null); $('#k-day').innerHTML = '<div class="hint">Lade …</div>' }
+  try { renderKalender(await loadRepo()) } catch(e){ $('#k-day').innerHTML = ''; $('#k-day').appendChild(el('div', 'hint', e.offline ? 'Offline – Kalender nicht verfügbar.' : 'Fehler: ' + e.message)) }
+}
+function moodClass(v){ const n = +v; return v === '' || v == null || isNaN(n) ? '' : n <= 4 ? 'mood-low' : n <= 6 ? 'mood-mid' : 'mood-high' }
+function calIndex(r){
+  const days = {};
+  const at = d => days[d] || (days[d] = {tasks: [], notes: [], obs: [], ci: null});
+  allTasks(r).filter(t => t.due).forEach(t => at(t.due).tasks.push(t));
+  journalFiles(r).forEach(j => {
+    const v = fmValues(j.text), d = at(j.date);
+    if (v.typ === 'checkin') d.ci = {v, text: j.text};
+    d.notes = journalNotes(j); d.obs = journalObs(j);
+  });
+  return days;
+}
+function renderKalender(r){
+  const today = berlin().date, days = r ? calIndex(r) : {};
+  const [y, m] = calMonth.split('-').map(Number);
+  $('#k-month').textContent = `${MONTH_NAMES[m - 1]} ${y}`;
+  const first = `${calMonth}-01`, lead = (new Date(first + 'T00:00:00Z').getUTCDay() + 6) % 7;
+  const grid = $('#k-grid'); grid.innerHTML = '';
+  const start = addDays(first, -lead);
+  const weeks = Math.ceil((lead + new Date(Date.UTC(y, m, 0)).getUTCDate()) / 7);
+  for (let i = 0; i < weeks * 7; i++) {
+    const d = addDays(start, i), info = days[d];
+    const b = el('button', 'calday' + (d.slice(0, 7) !== calMonth ? ' out' : '') + (d === today ? ' today' : '') + (d === calDay ? ' on' : ''));
+    b.type = 'button'; b.dataset.date = d;
+    b.setAttribute('aria-label', `${wd(d)} ${fmtDate(d)}${info && info.tasks.length ? `, ${info.tasks.length} Aufgabe${info.tasks.length > 1 ? 'n' : ''}` : ''}`);
+    b.setAttribute('aria-pressed', String(d === calDay));
+    b.appendChild(el('span', 'calnum', String(+d.slice(8))));
+    const marks = el('span', 'calmarks');
+    if (info && info.tasks.length) marks.appendChild(el('i', 'mk task' + (d < today ? ' late' : ''), info.tasks.length > 1 ? String(info.tasks.length) : null));
+    if (info && (info.notes.length || info.obs.length)) marks.appendChild(el('i', 'mk note'));
+    b.appendChild(marks);
+    b.appendChild(el('span', 'mood ' + (info && info.ci ? moodClass(info.ci.v.stimmung) : '')));
+    b.onclick = () => { calDay = d; calMonth = d.slice(0, 7); renderKalender(r) };
+    grid.appendChild(b);
+  }
+  if (r) renderCalDay(days[calDay] || {tasks: [], notes: [], obs: [], ci: null}, calDay, today);
+}
+function renderCalDay(info, d, today){
+  const box = $('#k-day'); box.innerHTML = '';
+  box.appendChild(el('h2', null, `${wd(d)}, ${fmtDate(d)}${d === today ? ' · heute' : ''}`));
+  const again = () => { repo = null; showKalender() };
+  info.tasks.slice().sort((a, b) => a.area.localeCompare(b.area) || a.page.localeCompare(b.page) || a.lineNo - b.lineNo)
+    .forEach(t => box.appendChild(taskCard(t, t.due < today, again)));
+  if (info.ci) {
+    const c = el('div', 'card calci'), v = info.ci.v;
+    c.appendChild(el('div', 'hint', v.variante === 'kurz' ? 'Check-in (kurz)' : 'Check-in'));
+    const vals = el('div', 'calvals');
+    SCALES.forEach(([key,,, label]) => { if (v[key] !== '' && v[key] != null) { const s = el('span', null, `${label} `); s.appendChild(el('b', null, v[key])); vals.appendChild(s) } });
+    c.appendChild(vals);
+    const ev = (info.ci.text.split(/^## Wichtigstes Ereignis\s*$/m)[1] || '').split(/^## /m)[0].trim();
+    if (ev) c.appendChild(el('div', 'ttext open', ev));
+    box.appendChild(c);
+  }
+  info.notes.forEach(n => { const c = el('div', 'card'); c.append(el('div', 'hint', `Notiz · ${n.time}`), el('div', 'ttext', n.body)); c.onclick = () => c.lastChild.classList.toggle('open'); box.appendChild(c) });
+  info.obs.forEach(o => { const c = el('div', 'card'); c.append(el('div', 'hint', 'Beobachtung'), el('div', 'ttext open', o)); box.appendChild(c) });
+  if (!info.tasks.length && !info.ci && !info.notes.length && !info.obs.length) box.appendChild(el('div', 'hint', d < today ? 'Nichts eingetragen.' : 'Nichts fällig.'));
+  if (d >= today) { const b = el('button', 'ghost wide', `+ Aufgabe für ${wd(d)} ${fmtDate(d).slice(0, 6)}`); b.id = 'k-newtask'; b.onclick = () => { newTaskDue = d; newTaskFrom = 'kalender'; tab('newtask') }; box.appendChild(b) }
+}
+function calShift(n){
+  const [y, m] = calMonth.split('-').map(Number), today = berlin().date;
+  calMonth = new Date(Date.UTC(y, m - 1 + n, 1)).toISOString().slice(0, 7);
+  calDay = calMonth === today.slice(0, 7) ? today : `${calMonth}-01`;
+  renderKalender(repo);
 }
 
 // ---------- Verlauf ----------
@@ -937,8 +1056,10 @@ function renderPageList(){
   });
   $('#t-page-q').setAttribute('aria-expanded', String(hits.length > 0));
 }
+// "+ Aufgabe" in the calendar pre-fills the date and returns to the calendar after saving
+let newTaskDue = '', newTaskFrom = 'offen';
 async function openNewTask(){
-  $('#t-text').value = lock.get('t-draft', ''); $('#t-due').value = '';
+  $('#t-text').value = lock.get('t-draft', ''); $('#t-due').value = newTaskDue; newTaskDue = '';
   $('#t-page').value = ''; $('#t-page-q').value = ''; $('#t-page-q').classList.remove('hidden'); $('#t-page-sel').classList.add('hidden');
   setTimeout(() => $('#t-text').focus(), 50);
   renderPageList();
@@ -962,7 +1083,7 @@ async function saveTask(){
   try {
     const r = await submit({kind: 'task', path, text, due: due || null, today: berlin().date});
     store.set('t-page', path); store.set('t-pages-recent', JSON.stringify([path, ...recentPages().filter(p => p !== path)].slice(0, 5))); lock.set('t-draft', ''); $('#t-text').value = '';
-    doneMsg(r, 'Aufgabe angelegt.'); tab('offen');
+    doneMsg(r, 'Aufgabe angelegt.'); tab(newTaskFrom);
   } catch(e){ msg(e.message, 'err') }
   $('#t-save').disabled = false;
 }
@@ -1073,12 +1194,14 @@ function tab(name){
   if (activeMic) activeMic.stop();
   flushTick();
   current = name;
-  const navName = name === 'note' || name === 'symptom' ? 'heute' : name === 'newtask' ? 'offen' : name;
+  if (name !== 'newtask') newTaskFrom = 'offen';
+  const navName = name === 'note' || name === 'symptom' ? 'heute' : name === 'newtask' ? newTaskFrom : name;
   $$('nav button').forEach(b => b.classList.toggle('on', b.dataset.tab === navName));
-  ['heute','checkin','note','symptom','newtask','offen','verlauf','settings'].forEach(t => $('#tab-'+t).classList.toggle('hidden', t !== name));
+  ['heute','checkin','note','symptom','newtask','offen','kalender','verlauf','settings'].forEach(t => $('#tab-'+t).classList.toggle('hidden', t !== name));
   if (name === 'heute') renderHeute();
   if (name === 'checkin') renderCheckin();
   if (name === 'offen') showOffen();
+  if (name === 'kalender') showKalender();
   if (name === 'verlauf') showVerlauf();
   if (name === 'settings') renderPushCard().catch(() => {});
   if (name === 'newtask') openNewTask();
@@ -1120,6 +1243,7 @@ $('#ci-kurz').onchange = e => { draft.kurz = e.target.checked; draft.step = 0; s
 $('#ci-reset').onclick = () => { if (confirm('Entwurf verwerfen?')) { lock.set('ci-draft', 'null'); loadDraft(); renderCheckin() } };
 $('#n-text').oninput = e => lock.set('n-draft', e.target.value);
 $('#o-reload').onclick = () => showOffen(true);
+$('#k-prev').onclick = () => calShift(-1); $('#k-next').onclick = () => calShift(1);
 $('#n-save').onclick = saveNote; $('#s-save').onclick = saveObs; $('#set-save').onclick = saveSettings;
 $('#set-repo').value = cfg().repo; $('#set-branch').value = cfg().branch; $('#set-vault').value = store.get('vault', 'second-brain');
 window.addEventListener('online', flushOutbox);
@@ -1149,7 +1273,7 @@ function startApp(){
   renderPinCard();
   const want = new URLSearchParams(location.search).get('tab');
   if (want) history.replaceState(null, '', location.pathname);
-  if (!started) { started = true; tab(!cfg().token ? 'settings' : ['heute','checkin','offen','verlauf'].includes(want) ? want : 'heute') } else tab(want && ['heute','checkin','offen','verlauf'].includes(want) ? want : current);
+  if (!started) { started = true; tab(!cfg().token ? 'settings' : ['heute','checkin','offen','kalender','verlauf'].includes(want) ? want : 'heute') } else tab(want && ['heute','checkin','offen','kalender','verlauf'].includes(want) ? want : current);
   flushOutbox();
 }
 if (lock.enabled()) showLock(); else lock.loadAll().then(startApp);

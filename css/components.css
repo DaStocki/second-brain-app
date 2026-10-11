@@ -13,14 +13,14 @@
 
 /* nav: rail with a gliding indicator */
 nav{
-  position:sticky;top:max(10px,env(safe-area-inset-top));z-index:20;display:flex;gap:4px;margin-top:10px;padding:var(--nav-pad);
+  position:sticky;top:max(10px,env(safe-area-inset-top));z-index:20;display:flex;gap:2px;margin-top:10px;padding:var(--nav-pad);
   border:var(--nav-border);border-radius:var(--nav-radius);background:var(--nav-bg);box-shadow:var(--nav-shadow);
   -webkit-backdrop-filter:var(--nav-backdrop);backdrop-filter:var(--nav-backdrop);
-  /* the tab bar grows at most to 110 % so the five tabs stay on one line */
+  /* the tab bar grows at most to 110 % so the six tabs stay on one line */
   zoom:calc(min(var(--zoom,1),1.1) / var(--zoom,1));
 }
 nav button{
-  position:relative;z-index:1;flex:1 1 auto;padding:9px 6px;border:0;border-radius:var(--nav-item-radius);background:none;white-space:nowrap;
+  position:relative;z-index:1;flex:1 1 auto;padding:9px 5px;border:0;border-radius:var(--nav-item-radius);background:none;white-space:nowrap;
   font:var(--nav-font);color:var(--nav-color);cursor:pointer;transition:color .3s var(--ease);
 }
 nav button.on{color:var(--nav-on-color);font-weight:500}
@@ -215,3 +215,43 @@ body.locked main{display:none}
 .pagesel strong{flex:1;min-width:0;overflow-wrap:anywhere}
 .pagesel .hint{order:2}
 .pagesel .ghost{order:3;flex:none}
+
+/* calendar: month grid, cells share the scale buttons' look */
+.calhead{display:flex;align-items:center;gap:10px}
+.calhead h1{flex:1;text-align:center}
+.calnav{flex:none;width:44px;height:44px;padding:0;font-size:1.25rem;line-height:1}
+.calweek,.calgrid{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}
+.calweek{margin:4px 0 6px;text-align:center;font:var(--cstat-font);letter-spacing:var(--cstat-tracking);text-transform:var(--cstat-case);color:var(--cstat-color);-webkit-font-smoothing:var(--display-smoothing)}
+.calday{
+  position:relative;display:flex;flex-direction:column;align-items:center;gap:3px;min-width:0;height:58px;padding:6px 0 0;
+  border:var(--scale-border);border-radius:var(--scale-radius);cursor:pointer;
+  font:var(--scale-font);color:var(--scale-color);background:var(--scale-bg);box-shadow:var(--scale-shadow);-webkit-font-smoothing:var(--display-smoothing);
+  transition:background .2s var(--ease),box-shadow .2s var(--ease),border-color .2s var(--ease);
+}
+.calday:hover{box-shadow:var(--scale-hover-shadow);border-color:var(--scale-hover-border-color)}
+.calday.on{color:var(--scale-on-color);background:var(--scale-on-bg);box-shadow:var(--scale-on-shadow);border-color:var(--scale-on-border-color);text-shadow:var(--scale-on-text-shadow)}
+.calday.out{opacity:.38}
+.calday.today .calnum{box-shadow:0 0 0 1.5px var(--focus);border-radius:999px}
+.calnum{min-width:26px;padding:0 4px;line-height:1.45;font-size:.92rem}
+.calmarks{display:flex;gap:3px;align-items:center;height:12px}
+.mk{display:inline-grid;place-items:center;min-width:7px;height:7px;border-radius:999px;font:700 8px/1 var(--font-body);font-style:normal;color:var(--bg-color)}
+.mk.task{background:var(--accent)}
+.mk.task.late{background:var(--err)}
+.mk.task:not(:empty){min-width:12px;height:12px;padding:0 3px}
+.mk.note{background:var(--text-3)}
+.calday .mood{position:absolute;left:22%;right:22%;bottom:5px;height:3px;border-radius:999px}
+.mood-low{background:var(--mood-low)}.mood-mid{background:var(--mood-mid)}.mood-high{background:var(--mood-high)}
+.callegend{display:flex;flex-wrap:wrap;gap:6px 16px;margin:10px 2px 0;font-size:.78rem}
+.callegend span{display:inline-flex;align-items:center;gap:5px}
+.callegend .mood{display:inline-block;width:10px;height:3px;border-radius:999px;margin-right:-2px}
+.callegend .mood:last-of-type{margin-right:2px}
+.calvals{display:flex;flex-wrap:wrap;gap:4px 14px;margin:6px 0 4px;font-size:.88rem;color:var(--text-2)}
+.calvals b{font-weight:600;color:var(--text)}
+#k-newtask{margin-top:6px}
+/* "In Kalender" on tasks with a date */
+button.calbtn{display:inline;padding:0;border:0;background:none;cursor:pointer;font:inherit;color:var(--text-3);text-decoration:underline dotted;text-underline-offset:3px}
+button.calbtn:hover,button.calbtn[aria-expanded=true]{color:var(--accent)}
+.calx{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.calx .ghost{display:inline-block;text-decoration:none;font-size:.8rem}
+@media (max-width:400px){nav button{padding-left:2px;padding-right:2px}}
+@media (max-width:340px){nav button{font-size:.76rem}}

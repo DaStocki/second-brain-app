@@ -18,7 +18,7 @@
   --font-body:"Poppins",system-ui,sans-serif;--font-mono:"JetBrains Mono",ui-monospace,monospace;
   --body-size:15px;--display-smoothing:antialiased;--ease:cubic-bezier(.2,.8,.2,1);
   --text:#fdfdff;--text-2:#a9bbe4;--text-3:#6a7ea6;--accent:var(--lit);--focus:var(--lit);
-  --ok:#5bf0b0;--err:#ff7f98;--line:rgba(123,161,244,.18);
+  --ok:#5bf0b0;--mood-low:var(--err);--mood-mid:var(--accent);--mood-high:var(--ok);--err:#ff7f98;--line:rgba(123,161,244,.18);
   --bg-color:var(--void);
   --bg-image:radial-gradient(90% 50% at 85% -5%,rgba(30,80,190,.32),transparent 60%),radial-gradient(70% 40% at 0% 0%,rgba(198,224,255,.10),transparent 70%),linear-gradient(158deg,#0d2a6b 0%,#071845 30%,#04102e 58%,#040d2a 100%) fixed;
   --grain:.07;--selection-bg:rgba(4,92,255,.55);--selection-fg:inherit;--section-anim:rise .5s var(--ease);

@@ -22,7 +22,7 @@
   --font-body:"Geist",system-ui,-apple-system,"Segoe UI",sans-serif;--font-mono:"VT323",ui-monospace,monospace;
   --body-size:15px;--display-smoothing:none;--ease:cubic-bezier(.7,0,.2,1);
   --text:#f2f4f5;--text-2:#b6bdc3;--text-3:var(--mute);--accent:var(--chrome-hi);--focus:var(--ok);
-  --ok:#7fe36a;--warn:#f2a95e;--err:#ff7d83;--line:rgba(228,232,235,.09);
+  --ok:#7fe36a;--warn:#f2a95e;--err:#ff7d83;--mood-low:var(--err);--mood-mid:var(--warn);--mood-high:var(--ok);--line:rgba(228,232,235,.09);
   --bg-color:var(--ground);
   --bg-image:radial-gradient(70% 38% at 50% -8%,rgba(195,204,213,.28) 0%,rgba(195,204,213,0) 64%),linear-gradient(180deg,var(--ground-2) 0%,var(--ground) 38%,var(--ground) 100%) no-repeat;
   --grain:0;--selection-bg:var(--ok);--selection-fg:#0f2509;--section-anim:rise-blur .9s var(--ease-out) both;

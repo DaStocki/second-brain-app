@@ -61,6 +61,14 @@ for (const theme of THEMES) {
       await page.mouse.click(box.x + box.width * 0.5, box.y + box.height / 2);
       await expect(page).toHaveScreenshot(`${theme}-verlauf.png`, shot);
     });
+    test('kalender', async ({ page }) => {
+      await start(page, theme);
+      await page.click('nav button[data-tab=kalender]'); await page.waitForSelector('#k-day h2');
+      await page.click('.calday[data-date="2026-10-09"]'); await settle(page);
+      await expect(page).toHaveScreenshot(`${theme}-kalender.png`, { ...shot, fullPage: true });
+      await page.click('.calday[data-date="2026-10-14"]'); await page.click('#k-day .calbtn'); await page.mouse.move(0, 0); await settle(page);
+      await expect(page).toHaveScreenshot(`${theme}-kalender-tag.png`, shot);
+    });
     test('einstellungen', async ({ page }) => {
       await start(page, theme);
       await page.click('nav button[data-tab=settings]'); await settle(page);
@@ -74,6 +82,7 @@ for (const theme of THEMES) {
       await page.locator('#s-areas .pill').first().click(); await page.locator('#s-scale button').nth(4).click(); await settle(page);
       await expect(page).toHaveScreenshot(`${theme}-beobachtung.png`, { ...shot, fullPage: true });
       await page.click('nav button[data-tab=heute]'); await page.click('[data-go=newtask]');
+      await expect(page.locator('#t-text')).toBeFocused(); // the form focuses the text after 50 ms
       await page.waitForSelector('#t-page-list .pl-item'); await page.fill('#t-page-q', 'wohnung'); await page.fill('#t-due', '2026-11-02');
       await page.mouse.move(0, 0); await settle(page);
       await expect(page).toHaveScreenshot(`${theme}-aufgabe.png`, shot);

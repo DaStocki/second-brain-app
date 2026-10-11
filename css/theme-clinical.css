@@ -26,7 +26,7 @@
   --font-display:"Bricolage Grotesque","Helvetica Neue",Helvetica,Arial,sans-serif;
   --body-size:15.5px;--display-smoothing:antialiased;--ease:cubic-bezier(.6,0,.2,1);
   --text:#e9ecf5;--text-2:#b8bfd5;--text-3:#848ba5;--accent:var(--signal);--focus:var(--signal);
-  --ok:#4fcf9f;--warn:#f0b64e;--err:#ff6b7d;--line:rgba(160,182,235,.11);
+  --ok:#4fcf9f;--warn:#f0b64e;--err:#ff6b7d;--mood-low:var(--err);--mood-mid:var(--warn);--mood-high:var(--ok);--line:rgba(160,182,235,.11);
   --bg-color:var(--ink-0);
   --bg-image:radial-gradient(42% 30% at 88% 4%,rgba(43,86,201,.42),transparent 72%) fixed,radial-gradient(30% 22% at 70% 0%,rgba(141,181,255,.12),transparent 70%) fixed,var(--ink-0) no-repeat fixed;
   --grain:.06;--selection-bg:var(--signal-deep);--selection-fg:#fff;--section-anim:none;
