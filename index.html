@@ -413,7 +413,7 @@ html[data-theme="steel"]{background:var(--ground)}
 [data-theme="steel"] #lock-pin{font:400 2rem var(--mono);letter-spacing:.4em;color:var(--ok);text-shadow:0 0 10px var(--ok-glow)}
 
 /* theme chooser swatches */
-.themes{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}
+.themes{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:12px}
 .themes button{position:relative;display:grid;gap:8px;padding:10px;border:0;border-radius:14px;cursor:pointer;text-align:left;font:500 .85rem var(--sans);color:var(--ink);background:rgba(255,255,255,.04);box-shadow:inset 0 0 0 1px var(--line)}
 .themes button.on{box-shadow:inset 0 0 0 2px var(--lit),0 0 18px -6px var(--lit)}
 .themes .sw{height:54px;border-radius:9px;box-shadow:inset 0 0 0 1px rgba(255,255,255,.12)}
@@ -428,11 +428,189 @@ html[data-theme="steel"]{background:var(--ground)}
 [data-theme="steel"] main>section:not(.hidden){animation:rise-blur .9s var(--ease-out) both}
 @media (prefers-reduced-motion:reduce){.lockband>div{animation:none!important}[data-theme="steel"] h1{animation:none!important}}
 
+/* ═══════════ Theme „Klinik“ (data-theme="clinical"): quiet clinical instrument — deep ink, near-black panels
+   with a soft signal glow rising behind the top edge, light grotesque headlines, data in mono, one cool signal accent.
+   The lit primary button is the only effect; everything else stays still. ═══════════ */
+@font-face{font-family:"Bricolage Grotesque";font-weight:200;font-display:swap;src:url(fonts/bricolage-grotesque-latin-200-normal.woff2) format("woff2")}
+@font-face{font-family:"Bricolage Grotesque";font-weight:300;font-display:swap;src:url(fonts/bricolage-grotesque-latin-300-normal.woff2) format("woff2")}
+@font-face{font-family:"Bricolage Grotesque";font-weight:400;font-display:swap;src:url(fonts/bricolage-grotesque-latin-400-normal.woff2) format("woff2")}
+@font-face{font-family:"Hanken Grotesk";font-weight:300;font-display:swap;src:url(fonts/hanken-grotesk-latin-300-normal.woff2) format("woff2")}
+@font-face{font-family:"Hanken Grotesk";font-weight:400;font-display:swap;src:url(fonts/hanken-grotesk-latin-400-normal.woff2) format("woff2")}
+@font-face{font-family:"Hanken Grotesk";font-weight:500;font-display:swap;src:url(fonts/hanken-grotesk-latin-500-normal.woff2) format("woff2")}
+@font-face{font-family:"Hanken Grotesk";font-weight:600;font-display:swap;src:url(fonts/hanken-grotesk-latin-600-normal.woff2) format("woff2")}
+@font-face{font-family:"IBM Plex Mono";font-weight:400;font-display:swap;src:url(fonts/ibm-plex-mono-latin-400-normal.woff2) format("woff2")}
+@font-face{font-family:"IBM Plex Mono";font-weight:500;font-display:swap;src:url(fonts/ibm-plex-mono-latin-500-normal.woff2) format("woff2")}
+[data-theme="clinical"]{
+  --ink-0:#070a13;--ink-1:#0c1121;--ink-30:#121933;
+  --line:rgba(160,182,235,.11);--line-2:rgba(160,182,235,.22);
+  --text:#e9ecf5;--text-2:#b8bfd5;--mute:#848ba5;
+  --signal:#8db5ff;--signal-deep:#2b56c9;--glow:rgb(176,222,255);--glow-soft:rgba(176,222,255,.45);
+  --alert:#ff6b7d;--warn:#f0b64e;--ok:#4fcf9f;--err:var(--alert);
+  --panel:#05070d;--panel-line:rgba(160,182,235,.14);--signal-10:rgba(141,181,255,.1);--signal-16:rgba(141,181,255,.16);--signal-50:rgba(141,181,255,.5);
+  --radius:16px;
+  --display:"Bricolage Grotesque","Helvetica Neue",Helvetica,Arial,sans-serif;
+  --sans:"Hanken Grotesk","Helvetica Neue",Helvetica,Arial,system-ui,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace;
+  --ease:cubic-bezier(.6,0,.2,1);
+  --ink:var(--text);--ink-2:var(--text-2);--ink-3:var(--mute);--lit:var(--signal);--blue:var(--signal-deep);--void:var(--ink-0);
+  --bg:var(--ink-0);--fg:var(--text);--mut:var(--mute);--card:var(--panel);--acc:var(--signal);
+}
+html[data-theme="clinical"]{background:var(--ink-0)}
+[data-theme="clinical"] body{
+  font:400 15.5px/1.55 var(--sans);color:var(--text);
+  background:
+    radial-gradient(42% 30% at 88% 4%,rgba(43,86,201,.42),transparent 72%),
+    radial-gradient(30% 22% at 70% 0%,rgba(141,181,255,.12),transparent 70%),
+    var(--ink-0) no-repeat;
+  background-attachment:fixed;
+}
+[data-theme="clinical"] body::after{opacity:.06}
+[data-theme="clinical"] ::selection{background:var(--signal-deep);color:#fff}
+[data-theme="clinical"] main>section:not(.hidden){animation:none}
+
+/* type: light grotesque display, mono labels */
+[data-theme="clinical"] h1{
+  margin:28px 0 14px;font:300 clamp(2.2rem,1.6rem + 2.6vw,2.9rem)/.98 var(--display);letter-spacing:-.035em;
+  background:none;-webkit-background-clip:border-box;background-clip:border-box;color:var(--text);text-shadow:none;
+}
+[data-theme="clinical"] h2{gap:8px;margin:30px 0 10px;font:400 12px/1.4 var(--mono);letter-spacing:.06em;color:var(--mute)}
+[data-theme="clinical"] h2::before{width:4px;height:4px;border-radius:50%;background:var(--signal);opacity:.7;box-shadow:none}
+[data-theme="clinical"] .hint{color:var(--text-2);font-weight:300}
+[data-theme="clinical"] label.q{font-weight:500}
+[data-theme="clinical"] .bigq{font:300 1.7rem/1.08 var(--display);letter-spacing:-.03em;color:var(--text)}
+
+/* panels: near-black with a glow rising from behind the top edge; still */
+[data-theme="clinical"] .card{
+  border:1px solid var(--panel-line);border-radius:var(--radius);
+  background:radial-gradient(70% 55% at 50% -12%,var(--signal-16),transparent 70%),var(--panel);
+  box-shadow:0 30px 60px -40px rgba(0,0,0,.9);
+  transition:border-color .4s var(--ease);
+}
+[data-theme="clinical"] .card.task:hover,[data-theme="clinical"] .card.chart:hover{transform:none;border-color:var(--line-2);box-shadow:0 30px 60px -40px rgba(0,0,0,.9)}
+
+/* nav: frosted header pill */
+[data-theme="clinical"] nav{
+  padding:4px;border-radius:999px;border:1px solid var(--line);
+  background:rgba(5,7,13,.72);box-shadow:0 18px 40px -24px rgba(0,0,0,.95);
+  -webkit-backdrop-filter:blur(18px) saturate(140%);backdrop-filter:blur(18px) saturate(140%);
+}
+[data-theme="clinical"] nav button{font:500 .84rem var(--sans);color:var(--text-2)}
+[data-theme="clinical"] nav button.on{color:var(--text)}
+[data-theme="clinical"] nav .glide{top:4px;height:calc(100% - 8px);background:var(--signal-10);box-shadow:inset 0 0 0 1px var(--signal-50)}
+
+/* buttons: the power switch — dark pill, lit on hover */
+[data-theme="clinical"] button.primary{
+  border:1px solid rgba(190,215,255,.4);border-radius:999px;font:500 .95rem var(--sans);color:#fff;background:var(--signal-deep);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.16),0 12px 30px -14px rgba(43,86,201,.9);
+  transition:border-color .4s var(--ease),box-shadow .4s var(--ease);
+}
+[data-theme="clinical"] button.primary:hover,[data-theme="clinical"] button.primary:focus-visible{
+  transform:none;border-color:#fff;
+  box-shadow:inset 0 0 1px var(--glow),inset 0 0 10px var(--glow-soft),0 0 18px var(--glow-soft),0 0 52px rgba(43,86,201,.5);
+}
+[data-theme="clinical"] .ghost{border:1px solid var(--line-2);background:none;box-shadow:none;font:500 .86rem var(--sans);color:var(--text-2);transition:border-color .4s var(--ease),color .4s var(--ease)}
+[data-theme="clinical"] .ghost:hover{border-color:rgba(190,210,255,.45);background:none;box-shadow:none;color:var(--text)}
+[data-theme="clinical"] .quick button{
+  border:1px solid var(--panel-line);border-radius:var(--radius);font:300 1.25rem var(--display);letter-spacing:-.02em;color:var(--text);
+  background:radial-gradient(70% 60% at 50% -15%,var(--signal-16),transparent 70%),var(--panel);
+}
+[data-theme="clinical"] .quick button:hover{transform:none;border-color:var(--signal-50);box-shadow:0 0 0 1px var(--signal-10)}
+[data-theme="clinical"] button:focus-visible,[data-theme="clinical"] a:focus-visible,[data-theme="clinical"] .pill:focus-visible{outline:2px solid var(--signal);outline-offset:3px}
+
+/* pills */
+[data-theme="clinical"] .pill{border:1px solid var(--line-2);background:none;box-shadow:none;font:500 .82rem var(--sans);color:var(--text-2)}
+[data-theme="clinical"] .pill:hover{border-color:var(--signal-50);color:var(--text);box-shadow:none}
+[data-theme="clinical"] .pill.on{border-color:var(--signal-50);background:var(--signal-16);color:var(--text);box-shadow:none}
+
+/* fields */
+[data-theme="clinical"] textarea,[data-theme="clinical"] input[type=text],[data-theme="clinical"] input[type=password],[data-theme="clinical"] input[type=date]{
+  border:1px solid var(--line-2);border-radius:12px;background:var(--ink-1);box-shadow:none;font-family:var(--sans);color:var(--text);
+}
+[data-theme="clinical"] textarea:focus,[data-theme="clinical"] input:focus{border-color:var(--signal-50);box-shadow:0 0 0 3px var(--signal-10)}
+[data-theme="clinical"] input[type=checkbox]{accent-color:var(--signal-deep)}
+[data-theme="clinical"] .scale button{border:1px solid var(--line-2);border-radius:12px;font:400 1.05rem var(--mono);color:var(--text-2);background:var(--ink-1);box-shadow:none;transform:none}
+[data-theme="clinical"] .scale button:hover{border-color:var(--signal-50);box-shadow:none}
+[data-theme="clinical"] .scale button.on{
+  color:#fff;border-color:#fff;background:var(--signal-deep);transform:none;
+  box-shadow:inset 0 0 1px var(--glow),inset 0 0 10px var(--glow-soft),0 0 18px var(--glow-soft);
+}
+[data-theme="clinical"] .scale.big button{font-size:1.25rem}
+
+/* wizard */
+[data-theme="clinical"] .prog{height:3px;background:var(--line)}
+[data-theme="clinical"] .prog>div{background:var(--signal);box-shadow:0 0 10px var(--signal-50)}
+[data-theme="clinical"] #ci-step>.hint:first-child{font:400 12px var(--mono);letter-spacing:.06em;color:var(--mute)}
+[data-theme="clinical"] .sumrow span:last-child{font:500 .95rem var(--mono);color:var(--text)}
+
+/* states */
+[data-theme="clinical"] .status{font-weight:500}
+[data-theme="clinical"] .status::before{width:6px;height:6px;animation:none}
+[data-theme="clinical"] .status.ok{color:var(--text)}
+[data-theme="clinical"] .status.ok::before{background:var(--ok);box-shadow:0 0 8px var(--ok)}
+[data-theme="clinical"] .status.todo{color:var(--text)}
+[data-theme="clinical"] .status.todo::before{background:var(--warn);box-shadow:0 0 8px var(--warn)}
+[data-theme="clinical"] #outbox{border:1px solid var(--signal-50);background:var(--signal-10);box-shadow:none}
+
+/* tasks */
+[data-theme="clinical"] .tick{border:1px solid var(--line-2);border-radius:7px;background:var(--ink-1);box-shadow:none}
+[data-theme="clinical"] .tick:hover{border-color:var(--signal);background:var(--signal-10);box-shadow:0 0 12px -2px var(--signal-50)}
+[data-theme="clinical"] .due{font:500 12px var(--mono);letter-spacing:.02em;color:var(--signal)}
+[data-theme="clinical"] .due.late{color:var(--alert)}
+[data-theme="clinical"] a.plink{color:var(--text-2);border-bottom-color:var(--line-2)}
+[data-theme="clinical"] a.plink:hover{color:var(--signal);border-bottom-color:var(--signal-50)}
+
+/* charts: smooth signal curve */
+[data-theme="clinical"] .chart .grid{stroke:var(--line)}
+[data-theme="clinical"] .chart .axis{font:400 10px var(--mono);fill:var(--mute)}
+[data-theme="clinical"] .chart .avg{stroke:var(--signal);stroke-width:2;filter:drop-shadow(0 0 6px rgba(141,181,255,.55))}
+[data-theme="clinical"] .chart .dot{fill:var(--signal);fill-opacity:.28;stroke:var(--panel)}
+[data-theme="clinical"] .chart .cross{stroke:var(--signal-50)}
+[data-theme="clinical"] .chead strong{font:300 1.35rem var(--display);letter-spacing:-.03em}
+[data-theme="clinical"] .cstat{font:400 12px var(--mono);letter-spacing:.02em;color:var(--mute)}
+[data-theme="clinical"] .ccap{font:400 12px var(--mono);color:var(--text-2)}
+
+/* toast */
+[data-theme="clinical"] #msg{
+  border:1px solid var(--panel-line);border-radius:12px;font:400 .9rem var(--sans);color:var(--text);animation:none;
+  background:rgba(5,7,13,.86);box-shadow:0 20px 50px -24px rgba(0,0,0,.95);
+  -webkit-backdrop-filter:blur(18px) saturate(140%);backdrop-filter:blur(18px) saturate(140%);
+}
+[data-theme="clinical"] #msg::before{width:6px;height:6px;margin-top:-3px;animation:none;background:var(--signal);box-shadow:0 0 8px var(--signal)}
+[data-theme="clinical"] #msg.ok::before{background:var(--ok);box-shadow:0 0 8px var(--ok)}
+[data-theme="clinical"] #msg.err{border-color:rgba(255,107,125,.4)}
+[data-theme="clinical"] #msg.err::before{background:var(--alert);box-shadow:0 0 8px var(--alert)}
+
+/* lock: the HUD — glowing core, tilted tick rings */
+.lockhud{display:none}
+[data-theme="clinical"] .lockrings,[data-theme="clinical"] .lockband{display:none}
+[data-theme="clinical"] .lockhud{display:block;position:absolute;z-index:-1;top:23%;left:50%;width:min(560px,130vw);aspect-ratio:1;translate:-50% -50%;perspective:1600px;pointer-events:none}
+.lockhud .plane{position:absolute;inset:0;transform:rotateX(57deg) rotateZ(-18deg);transform-style:preserve-3d}
+.lockhud b{position:absolute;left:50%;top:50%;width:7%;aspect-ratio:1;translate:-50% -50%;border-radius:50%;background:#8db5ff;box-shadow:0 0 70px 18px rgba(141,181,255,.5)}
+.lockhud i{position:absolute;left:50%;top:50%;translate:-50% -50%;border-radius:50%;border:3px dashed rgba(141,181,255,.55);animation:ring-turn 140s linear infinite}
+.lockhud i:nth-of-type(1){width:30%;aspect-ratio:1;border-color:rgba(141,181,255,.8)}
+.lockhud i:nth-of-type(2){width:50%;aspect-ratio:1;border-style:dotted;opacity:.7;animation-direction:reverse}
+.lockhud i:nth-of-type(3){width:72%;aspect-ratio:1;opacity:.45}
+.lockhud i:nth-of-type(4){width:96%;aspect-ratio:1;border-width:1px;border-style:solid;opacity:.3}
+@keyframes ring-turn{to{rotate:1turn}}
+[data-theme="clinical"] .lockbox{
+  border:1px solid var(--panel-line);border-radius:var(--radius);
+  background:radial-gradient(70% 55% at 50% -12%,var(--signal-16),transparent 70%),rgba(5,7,13,.86);
+  box-shadow:0 40px 90px -40px rgba(0,0,0,.95);-webkit-backdrop-filter:blur(18px);backdrop-filter:blur(18px);
+}
+[data-theme="clinical"] .lockbox .bigq{background:none;-webkit-background-clip:border-box;background-clip:border-box;color:var(--text)}
+[data-theme="clinical"] #lock-pin{font:400 1.4rem var(--mono);letter-spacing:.4em;color:var(--text)}
+[data-theme="clinical"] .themes button.on{box-shadow:inset 0 0 0 2px var(--signal),0 0 18px -6px var(--signal)}
+.sw.clinical{position:relative;background:radial-gradient(45% 55% at 82% 10%,rgba(43,86,201,.7),transparent 72%),#070a13}
+.sw.clinical::before{content:"";position:absolute;left:12px;bottom:12px;width:9px;height:9px;border-radius:50%;background:#8db5ff;box-shadow:0 0 14px 4px rgba(141,181,255,.55)}
+.sw.clinical::after{content:"";position:absolute;left:6px;bottom:6px;width:21px;height:21px;border-radius:50%;border:1.5px dashed rgba(141,181,255,.6)}
+@media (prefers-reduced-motion:reduce){.lockhud i{animation:none!important}}
+
 .hidden{display:none!important}
 </style>
 </head>
 <body>
 <section id="lock">
+  <div class="lockhud" aria-hidden="true"><div class="plane"><b></b><i></i><i></i><i></i><i></i></div></div>
   <div class="lockrings" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
   <div class="lockband a" aria-hidden="true"><div><span>Second Brain <em>·</em> gesperrt <em>·</em></span><span>Second Brain <em>·</em> gesperrt <em>·</em></span></div><div><span>Second Brain <em>·</em> gesperrt <em>·</em></span><span>Second Brain <em>·</em> gesperrt <em>·</em></span></div></div>
   <div class="lockband b" aria-hidden="true"><div><span>Second Brain <em>·</em> gesperrt <em>·</em></span><span>Second Brain <em>·</em> gesperrt <em>·</em></span></div><div><span>Second Brain <em>·</em> gesperrt <em>·</em></span><span>Second Brain <em>·</em> gesperrt <em>·</em></span></div></div>
@@ -530,6 +708,7 @@ html[data-theme="steel"]{background:var(--ground)}
     <div class="themes" id="themes">
       <button type="button" data-theme-choice="rings"><span class="sw rings"></span>Ringe</button>
       <button type="button" data-theme-choice="steel"><span class="sw steel"></span>Stahl</button>
+      <button type="button" data-theme-choice="clinical"><span class="sw clinical"></span>Klinik</button>
     </div>
   </div>
   <div class="card">
@@ -1252,7 +1431,7 @@ function moveGlide(){
   g.style.width = b.offsetWidth + 'px'; g.style.transform = `translateX(${b.offsetLeft}px)`;
 }
 window.addEventListener('resize', moveGlide);
-const THEMES = {rings: '#040d2a', steel: '#1b1e21'};
+const THEMES = {rings: '#040d2a', steel: '#1b1e21', clinical: '#070a13'};
 function setTheme(name){
   if (!THEMES[name]) name = 'rings';
   document.documentElement.dataset.theme = name;
