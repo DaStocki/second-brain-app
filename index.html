@@ -123,7 +123,7 @@ async function gh(path, opts={}){
   if (!c.token) throw new Error('Kein Token gesetzt (⚙︎).');
   let r;
   try {
-    r = await fetch(`https://api.github.com/repos/${c.repo}/${path}`, {...opts, headers:{Authorization:`Bearer ${c.token}`,Accept:'application/vnd.github+json',...(opts.headers||{})}});
+    r = await fetch(`https://api.github.com/repos/${c.repo}${path ? "/" + path : ""}`, {...opts, headers:{Authorization:`Bearer ${c.token}`,Accept:'application/vnd.github+json',...(opts.headers||{})}});
   } catch(e){ throw new Error(`api.github.com nicht erreichbar (offline oder von der Umgebung blockiert): ${e.message}`) }
   if (r.status === 404 && opts.allow404) return null;
   if (!r.ok) { const e = new Error(`GitHub ${r.status}`); e.status = r.status; e.body = await r.text().catch(()=>''); throw e }
