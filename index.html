@@ -644,6 +644,29 @@ select option,select optgroup{background:#081d5c;color:#fdfdff}
 [data-theme="clinical"] select option,[data-theme="clinical"] select optgroup{background:#0c1121}
 #o-new{margin-right:6px}
 
+/* page search */
+.pagelist{display:grid;gap:4px;margin-top:8px}
+.pagelist:empty{display:none}
+.pl-head{padding:2px 4px;font-size:.78rem}
+.pl-item{display:flex;justify-content:space-between;align-items:baseline;gap:12px;width:100%;padding:11px 14px;border:0;border-radius:12px;cursor:pointer;text-align:left;font:500 .92rem var(--sans);color:var(--ink);background:rgba(123,161,244,.08);box-shadow:inset 0 0 0 1px var(--line);transition:background .2s,box-shadow .2s}
+.pl-item:hover,.pl-item:focus-visible{background:rgba(123,161,244,.16);box-shadow:inset 0 0 0 1px var(--lit)}
+.pl-item .hint{flex:none;font-size:.75rem}
+.pagesel{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:14px;background:rgba(123,161,244,.08);box-shadow:inset 0 0 0 1px var(--line)}
+.pagesel strong{flex:1;min-width:0;overflow-wrap:anywhere}
+.pagesel .hint{order:2;font-size:.75rem}
+.pagesel .ghost{order:3;flex:none}
+input[type=search]{width:100%;padding:12px 14px;border:0;border-radius:14px;font:400 .95rem var(--sans);color:var(--ink);background:rgba(4,17,60,.55);box-shadow:inset 0 0 0 1px rgba(164,216,255,.2)}
+input[type=search]:focus{outline:none;box-shadow:inset 0 0 0 1px rgba(200,228,255,.6),0 0 0 4px rgba(39,91,187,.35)}
+[data-theme="steel"] input[type=search]{border:1px solid rgba(0,0,0,.5);border-radius:.75rem;background:var(--scan),var(--well);box-shadow:inset 0 2px 10px rgba(0,0,0,.65)}
+[data-theme="steel"] .pl-item,[data-theme="steel"] .pagesel{border-radius:.6rem;background:linear-gradient(180deg,var(--panel-2),var(--panel));box-shadow:var(--bevel);border:1px solid var(--line-2)}
+[data-theme="steel"] .pl-item:hover{border-color:var(--chrome);box-shadow:var(--bevel)}
+[data-theme="steel"] .pl-item .hint,[data-theme="steel"] .pagesel .hint{font:400 1rem var(--mono);text-transform:uppercase;color:var(--mute)}
+[data-theme="clinical"] input[type=search]{border:1px solid var(--line-2);border-radius:12px;background:var(--ink-1);box-shadow:none}
+[data-theme="clinical"] input[type=search]:focus{border-color:var(--signal-50);box-shadow:0 0 0 3px var(--signal-10)}
+[data-theme="clinical"] .pl-item,[data-theme="clinical"] .pagesel{border-radius:12px;background:var(--ink-1);box-shadow:none;border:1px solid var(--line-2)}
+[data-theme="clinical"] .pl-item:hover{border-color:var(--signal-50);background:var(--signal-10)}
+[data-theme="clinical"] .pl-item .hint,[data-theme="clinical"] .pagesel .hint{font:400 11px var(--mono);letter-spacing:.04em;text-transform:uppercase}
+
 .hidden{display:none!important}
 </style>
 </head>
@@ -694,8 +717,11 @@ select option,select optgroup{background:#081d5c;color:#fdfdff}
   <div class="card">
     <label class="q" for="t-text">Was ist zu tun?</label>
     <textarea id="t-text" rows="3" placeholder="z. B. Überweisung beim Hausarzt holen"></textarea>
-    <label class="q" for="t-page" style="margin-top:14px">Auf welche Seite? <span class="hint">die Aufgabe landet dort unter „Offene Aufgaben“ bzw. „Offene Punkte“</span></label>
-    <select id="t-page"></select>
+    <label class="q" for="t-page-q" style="margin-top:14px">Auf welche Seite? <span class="hint">die Aufgabe landet dort unter „Offene Aufgaben“ bzw. „Offene Punkte“</span></label>
+    <input type="search" id="t-page-q" placeholder="Seite suchen …" autocomplete="off" enterkeyhint="done" role="combobox" aria-controls="t-page-list" aria-autocomplete="list" aria-expanded="false">
+    <input type="hidden" id="t-page">
+    <div id="t-page-sel" class="pagesel hidden"></div>
+    <div id="t-page-list" class="pagelist" role="listbox" aria-label="Seiten"></div>
     <label class="q" for="t-due" style="margin-top:14px">Fällig am <span class="hint">optional</span></label>
     <input type="date" id="t-due">
   </div>
@@ -1471,23 +1497,58 @@ function addTaskLine(text, task, today){
     .replace(/^tags:\s*\[([^\]]*)\]/m, (m, l) => { const t = l.split(',').map(s => s.trim()).filter(Boolean); return t.includes('offen') ? m : `tags: [${[...t, 'offen'].join(', ')}]` }));
 }
 const TASK_GROUPS = [['wiki/projects/', 'Projekte'], ['wiki/people/', 'Personen'], ['wiki/concepts/', 'Themen']];
+let taskPages = null;
+const fold = t => t.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/ß/g, 'ss');
+function recentPages(){ try { return JSON.parse(store.get('t-pages-recent', '[]')) } catch { return [] } }
+function pickPage(p){
+  $('#t-page').value = p.path; $('#t-page-q').value = '';
+  const sel = $('#t-page-sel'); sel.innerHTML = '';
+  sel.append(el('span', 'hint', p.group), el('strong', null, p.title));
+  const ch = el('button', 'ghost', 'Ändern'); ch.type = 'button'; ch.onclick = () => { $('#t-page').value = ''; sel.classList.add('hidden'); $('#t-page-q').classList.remove('hidden'); renderPageList(); $('#t-page-q').focus() };
+  sel.append(ch); sel.classList.remove('hidden');
+  $('#t-page-q').classList.add('hidden'); $('#t-page-list').innerHTML = ''; $('#t-page-q').setAttribute('aria-expanded', 'false');
+}
+function renderPageList(){
+  const list = $('#t-page-list'); list.innerHTML = '';
+  if (!taskPages) { list.appendChild(el('div', 'hint', 'Lade Seiten …')); return }
+  const q = fold($('#t-page-q').value.trim()), words = q.split(/\s+/).filter(Boolean);
+  let hits;
+  if (!words.length) {
+    const rec = recentPages().map(p => taskPages.find(x => x.path === p)).filter(Boolean);
+    hits = rec.length ? rec : taskPages.filter(p => p.path === 'wiki/people/ich.md');
+    if (hits.length) list.appendChild(el('div', 'hint pl-head', rec.length ? 'Zuletzt genutzt' : 'Vorschlag'));
+  } else {
+    hits = taskPages.map(p => {
+      const hay = fold(p.title + ' ' + p.name);
+      if (!words.every(w => hay.includes(w))) return null;
+      const t = fold(p.title), score = (t.startsWith(words[0]) ? 0 : t.split(/[\s–-]+/).some(x => x.startsWith(words[0])) ? 1 : 2);
+      return {p, score};
+    }).filter(Boolean).sort((a, b) => a.score - b.score || a.p.title.localeCompare(b.p.title, 'de')).slice(0, 8).map(x => x.p);
+    if (!hits.length) list.appendChild(el('div', 'hint pl-head', 'Keine Seite gefunden.'));
+  }
+  hits.forEach(p => {
+    const b = el('button', 'pl-item'); b.type = 'button'; b.setAttribute('role', 'option');
+    b.append(el('span', null, p.title), el('span', 'hint', p.group)); b.onclick = () => pickPage(p);
+    list.appendChild(b);
+  });
+  $('#t-page-q').setAttribute('aria-expanded', String(hits.length > 0));
+}
 async function openNewTask(){
-  const sel = $('#t-page');
   $('#t-text').value = lock.get('t-draft', ''); $('#t-due').value = '';
+  $('#t-page').value = ''; $('#t-page-q').value = ''; $('#t-page-q').classList.remove('hidden'); $('#t-page-sel').classList.add('hidden');
   setTimeout(() => $('#t-text').focus(), 50);
-  if (sel.options.length > 1 && repo) return;
-  sel.innerHTML = '<option value="">Lade Seiten …</option>';
+  renderPageList();
   try {
-    const r = await loadRepo(); sel.innerHTML = '';
-    const last = store.get('t-page', 'wiki/people/ich.md');
-    for (const [prefix, label] of TASK_GROUPS) {
-      const og = document.createElement('optgroup'); og.label = label;
-      r.files.filter(f => f.path.startsWith(prefix) && !/\/README\.md$/.test(f.path)).map(f => ({path: f.path, title: parseFm(f.text).title || f.path.split('/').pop().replace(/\.md$/, '')}))
-        .sort((a, b) => a.title.localeCompare(b.title, 'de')).forEach(f => { const o = document.createElement('option'); o.value = f.path; o.textContent = f.title; og.appendChild(o) });
-      sel.appendChild(og);
-    }
-    if ([...sel.options].some(o => o.value === last)) sel.value = last;
-  } catch(e){ sel.innerHTML = `<option value="${store.get('t-page', 'wiki/people/ich.md')}">${e.offline ? 'Offline – zuletzt genutzte Seite' : 'Seiten nicht geladen'}</option>` }
+    const r = await loadRepo();
+    taskPages = TASK_GROUPS.flatMap(([prefix, group]) => r.files.filter(f => f.path.startsWith(prefix) && !/\/README\.md$/.test(f.path))
+      .map(f => ({path: f.path, group, name: f.path.split('/').pop().replace(/\.md$/, ''), title: parseFm(f.text).title || f.path.split('/').pop().replace(/\.md$/, '')})));
+    const last = taskPages.find(p => p.path === recentPages()[0]);
+    if (last) pickPage(last); else renderPageList();
+  } catch(e){
+    const last = store.get('t-page', '');
+    if (last) { const name = last.split('/').pop().replace(/\.md$/, ''); pickPage({path: last, title: name, group: e.offline ? 'offline – zuletzt genutzt' : 'zuletzt genutzt'}) }
+    else $('#t-page-list').innerHTML = '<div class="hint">Seiten konnten nicht geladen werden.</div>';
+  }
 }
 async function saveTask(){
   const text = $('#t-text').value.replace(/\s*\n+\s*/g, ' ').trim(), path = $('#t-page').value, due = $('#t-due').value;
@@ -1496,7 +1557,7 @@ async function saveTask(){
   $('#t-save').disabled = true;
   try {
     const r = await submit({kind: 'task', path, text, due: due || null, today: berlin().date});
-    store.set('t-page', path); lock.set('t-draft', ''); $('#t-text').value = '';
+    store.set('t-page', path); store.set('t-pages-recent', JSON.stringify([path, ...recentPages().filter(p => p !== path)].slice(0, 5))); lock.set('t-draft', ''); $('#t-text').value = '';
     doneMsg(r, 'Aufgabe angelegt.'); tab('offen');
   } catch(e){ msg(e.message, 'err') }
   $('#t-save').disabled = false;
@@ -1664,6 +1725,8 @@ $('#push-on').onclick = enablePush; $('#push-off').onclick = disablePush;
 initObs();
 ['#n-text', '#s-text', '#t-text'].forEach(q => attachMic($(q)));
 $('#t-save').onclick = saveTask;
+$('#t-page-q').oninput = renderPageList;
+$('#t-page-q').onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); const first = $('#t-page-list .pl-item'); if (first) first.click() } };
 $('#t-text').oninput = e => lock.set('t-draft', e.target.value);
 let started = false;
 function startApp(){
