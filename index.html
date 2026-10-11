@@ -8,7 +8,7 @@
 <link rel="icon" href="icon.svg">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <meta name="theme-color" content="#040d2a">
-<script>try{document.documentElement.dataset.theme=localStorage.getItem("theme")||"rings"}catch(e){document.documentElement.dataset.theme="rings"}</script>
+<script>try{document.documentElement.dataset.theme=localStorage.getItem("theme")||"rings";document.documentElement.style.setProperty("--zoom",localStorage.getItem("fontscale")||"1")}catch(e){document.documentElement.dataset.theme="rings"}</script>
 <link rel="preload" href="fonts/poppins-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
 <style>
 /* Design language: deep-navy "radiating rings" system — void background, gradient hairline surfaces,
@@ -667,6 +667,23 @@ input[type=search]:focus{outline:none;box-shadow:inset 0 0 0 1px rgba(200,228,25
 [data-theme="clinical"] .pl-item:hover{border-color:var(--signal-50);background:var(--signal-10)}
 [data-theme="clinical"] .pl-item .hint,[data-theme="clinical"] .pagesel .hint{font:400 11px var(--mono);letter-spacing:.04em;text-transform:uppercase}
 
+/* font size: scales the whole app content (text and spacing together) */
+main,#msg,.lockbox{zoom:var(--zoom,1)}
+/* the tab bar grows at most to 110 % so the five tabs stay on one line */
+nav{zoom:calc(min(var(--zoom,1),1.1) / var(--zoom,1))}
+nav button{white-space:nowrap}
+.sizes{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.sizes button{display:grid;justify-items:center;gap:2px;padding:10px 4px;border:0;border-radius:12px;cursor:pointer;font:400 .72rem var(--sans);color:var(--ink-2);background:rgba(255,255,255,.04);box-shadow:inset 0 0 0 1px var(--line)}
+.sizes button span{font-weight:600;line-height:1.2;color:var(--ink)}
+.sizes button.on{color:var(--ink);box-shadow:inset 0 0 0 2px var(--lit),0 0 18px -6px var(--lit)}
+[data-theme="steel"] .sizes button{border-radius:.6rem;background:var(--scan),var(--well);box-shadow:inset 0 2px 5px rgba(0,0,0,.6);border:1px solid var(--line-2)}
+[data-theme="steel"] .sizes button span{font-family:var(--mono);font-weight:400}
+[data-theme="steel"] .sizes button.on{border-color:rgba(127,227,106,.5);background:linear-gradient(180deg,#474e53,#383e42);box-shadow:var(--bevel)}
+[data-theme="steel"] .sizes button.on span{color:var(--ok)}
+[data-theme="clinical"] .sizes button{border-radius:12px;background:var(--ink-1);box-shadow:none;border:1px solid var(--line-2)}
+[data-theme="clinical"] .sizes button span{font-family:var(--display);font-weight:300}
+[data-theme="clinical"] .sizes button.on{border-color:var(--signal-50);background:var(--signal-16);box-shadow:none}
+
 .hidden{display:none!important}
 </style>
 </head>
@@ -787,6 +804,13 @@ input[type=search]:focus{outline:none;box-shadow:inset 0 0 0 1px rgba(200,228,25
       <button type="button" data-theme-choice="rings"><span class="sw rings"></span>Ringe</button>
       <button type="button" data-theme-choice="steel"><span class="sw steel"></span>Stahl</button>
       <button type="button" data-theme-choice="clinical"><span class="sw clinical"></span>Klinik</button>
+    </div>
+    <label class="q" style="margin-top:16px">Schriftgröße</label>
+    <div class="sizes" id="sizes" role="group" aria-label="Schriftgröße">
+      <button type="button" data-scale="0.9" aria-label="Klein"><span style="font-size:13px">A</span>Klein</button>
+      <button type="button" data-scale="1" aria-label="Normal"><span style="font-size:16px">A</span>Normal</button>
+      <button type="button" data-scale="1.15" aria-label="Groß"><span style="font-size:19px">A</span>Groß</button>
+      <button type="button" data-scale="1.3" aria-label="Sehr groß"><span style="font-size:22px">A</span>Sehr groß</button>
     </div>
   </div>
   <div class="card">
@@ -1697,6 +1721,15 @@ function setTheme(name){
   moveGlide(); if (document.fonts) document.fonts.ready.then(moveGlide);
 }
 $$('[data-theme-choice]').forEach(b => b.onclick = () => setTheme(b.dataset.themeChoice));
+function setScale(v){
+  if (!['0.9', '1', '1.15', '1.3'].includes(v)) v = '1';
+  document.documentElement.style.setProperty('--zoom', v);
+  store.set('fontscale', v);
+  $$('[data-scale]').forEach(b => { b.classList.toggle('on', b.dataset.scale === v); b.setAttribute('aria-pressed', String(b.dataset.scale === v)) });
+  moveGlide();
+}
+$$('[data-scale]').forEach(b => b.onclick = () => setScale(b.dataset.scale));
+setScale(store.get('fontscale', '1'));
 setTheme(document.documentElement.dataset.theme);
 if (document.fonts) document.fonts.ready.then(moveGlide);
 $$('nav button').forEach(b => b.onclick = () => tab(b.dataset.tab));
