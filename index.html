@@ -165,7 +165,7 @@ function addToNotes(text, date, time, entry){
   let f = text == null ? newFile(date) : splitFm(text);
   if (!f.fm) f = {fm:[`datum: ${date}`,'tags: [daily]'], body:text};
   ensureDaily(f.fm);
-  let body = f.body.replace(/\s*$/, '\n');
+  let body = f.body.trim() ? f.body.replace(/\s*$/, '\n') : '';
   if (!/^## Notizen$/m.test(body)) body += '\n## Notizen\n';
   body += `\n### ${time}\n${entry.trim()}\n`;
   return join({fm:f.fm, body});
@@ -179,7 +179,7 @@ function addObservation(text, date, line){
   if (!m) {
     const n = body.search(/^## Notizen$/m);
     const sec = `## Beobachtungen\n${line}\n\n`;
-    body = n >= 0 ? body.slice(0,n) + sec + body.slice(n) : body.replace(/\s*$/, '\n') + '\n' + sec.trimEnd() + '\n';
+    body = n >= 0 ? body.slice(0,n) + sec + body.slice(n) : (body.trim() ? body.replace(/\s*$/, '\n') + '\n' : '\n') + sec.trimEnd() + '\n';
   } else {
     const start = m.index + m[0].length;
     const rest = body.slice(start);
