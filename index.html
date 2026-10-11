@@ -684,6 +684,14 @@ nav button{white-space:nowrap}
 [data-theme="clinical"] .sizes button span{font-family:var(--display);font-weight:300}
 [data-theme="clinical"] .sizes button.on{border-color:var(--signal-50);background:var(--signal-16);box-shadow:none}
 
+/* undo toast + ticked state */
+#msg.act{display:flex;align-items:center;gap:12px}
+.msgbtn{margin-left:auto;padding:6px 14px;border:0;border-radius:999px;cursor:pointer;font:600 .85rem var(--sans);color:var(--ink);background:rgba(255,255,255,.1);box-shadow:inset 0 0 0 1px var(--lit)}
+[data-theme="steel"] .msgbtn{border-radius:999px;color:#15181a;background:linear-gradient(180deg,#f6f8f9,#cfd5da);box-shadow:inset 0 1px 0 #fff;font-family:var(--sans)}
+[data-theme="clinical"] .msgbtn{color:#fff;background:var(--signal-deep);box-shadow:none;border:1px solid rgba(190,215,255,.4)}
+.card.task.ticked{opacity:.5}
+.card.task.ticked .ttext{text-decoration:line-through}
+
 .hidden{display:none!important}
 </style>
 </head>
@@ -840,6 +848,13 @@ const store = {
 };
 const cfg = () => ({repo: store.get('repo','DaStocki/second-brain'), branch: store.get('branch','main'), token: lock.get('token','')});
 
+function msgAction(text, label, fn, ms = 5000){
+  const m = $('#msg'); m.textContent = text;
+  const b = document.createElement('button'); b.type = 'button'; b.className = 'msgbtn'; b.textContent = label;
+  b.onclick = () => { fn(); m.style.display = 'none' };
+  m.append(b); m.className = 'ok act'; m.style.display = 'flex';
+  clearTimeout(msg.t); msg.t = setTimeout(() => m.style.display = 'none', ms);
+}
 function msg(text, kind){
   const m = $('#msg'); m.textContent = text; m.className = kind || ''; m.style.display = 'block';
   clearTimeout(msg.t); msg.t = setTimeout(() => m.style.display = 'none', kind === 'err' ? 8000 : 3500);
@@ -877,6 +892,29 @@ async function updateFile(path, transform, message){
     } catch(e){ if ((e.status===409 || e.status===422) && i<3) continue; throw e }
   }
 }
+
+// Several files in ONE commit (Git Data API): read at the branch head, build a tree, commit, fast-forward the ref.
+// A concurrent push makes the ref update fail with 422; then everything is re-read and retried. Never forced.
+async function commitFiles(changes, message){
+  const c = cfg(), br = encodeURIComponent(c.branch);
+  for (let i = 0; i < 4; i++){
+    const head = (await gh(`git/ref/heads/${br}`)).object.sha;
+    const base = (await gh(`git/commits/${head}`)).tree.sha;
+    const tree = [];
+    for (const ch of changes){
+      const cur = await gh(`contents/${ch.path}?ref=${head}`, {allow404: true});
+      const old = cur ? b64d(cur.content) : null;
+      const next = ch.transform(old);
+      if (next !== old) tree.push({path: ch.path, mode: '100644', type: 'blob', content: next});
+    }
+    if (!tree.length) return false;
+    const t = await gh('git/trees', {method: 'POST', body: JSON.stringify({base_tree: base, tree})});
+    const commit = await gh('git/commits', {method: 'POST', body: JSON.stringify({message, tree: t.sha, parents: [head]})});
+    try { await gh(`git/refs/heads/${br}`, {method: 'PATCH', body: JSON.stringify({sha: commit.sha, force: false})}); return true }
+    catch(e){ if ((e.status === 422 || e.status === 409) && i < 3) continue; throw e }
+  }
+}
+const logAppend = line => old => (old || '').replace(/\s*$/, '\n') + line + '\n';
 
 // ---------- Journal helpers ----------
 function splitFm(text){
@@ -968,8 +1006,10 @@ const OPS = {
   obs: o => updateFile(`journal/${o.date}.md`, old => addObservation(old, o.date, o.line), `beobachtung: ${o.date}`),
   task: async o => {
     const page = o.path.split('/').pop().replace(/\.md$/, '');
-    await updateFile(o.path, old => { if (old == null) { const e = new Error('Seite nicht gefunden.'); e.permanent = true; throw e } return addTaskLine(old, {path: o.path, text: o.text, due: o.due}, o.today) }, `offen: neue Aufgabe (${page})`);
-    await updateFile('wiki/log.md', old => (old || '').replace(/\s*$/, '\n') + `- ${o.today} — Neue Aufgabe auf [[${page}]] in der App angelegt${o.due ? ' (fällig ' + fmtDate(o.due) + ')' : ''}: ${o.text.slice(0, 120)}${o.text.length > 120 ? ' …' : ''}\n`, `log: neue Aufgabe (${page})`);
+    await commitFiles([
+      {path: o.path, transform: old => { if (old == null) { const e = new Error('Seite nicht gefunden.'); e.permanent = true; throw e } return addTaskLine(old, {path: o.path, text: o.text, due: o.due}, o.today) }},
+      {path: 'wiki/log.md', transform: logAppend(`- ${o.today} — Neue Aufgabe auf [[${page}]] in der App angelegt${o.due ? ' (fällig ' + fmtDate(o.due) + ')' : ''}: ${o.text.slice(0, 120)}${o.text.length > 120 ? ' …' : ''}`)}
+    ], `offen: neue Aufgabe (${page})`);
   }
 };
 const outbox = {
@@ -1294,21 +1334,40 @@ function taskCard(t, late, after){
 async function setDue(t, iso, after){
   const today = berlin().date;
   try {
-    await updateFile(t.path, old => { if (old == null) throw new Error('Seite nicht gefunden.'); return setDueLine(old, t, iso, today) }, `offen: Fälligkeit ${iso ? 'gesetzt' : 'entfernt'} (${t.page})`);
-    await updateFile('wiki/log.md', old => (old || '').replace(/\s*$/, '\n') + `- ${today} — Aufgabe auf [[${t.page}]] in der App ${iso ? 'auf ' + fmtDate(iso) + ' terminiert' : 'ohne festes Datum gesetzt'}: ${t.text.slice(0, 100)}${t.text.length > 100 ? ' …' : ''}\n`, `log: Fälligkeit (${t.page})`);
+    await commitFiles([
+      {path: t.path, transform: old => { if (old == null) throw new Error('Seite nicht gefunden.'); return setDueLine(old, t, iso, today) }},
+      {path: 'wiki/log.md', transform: logAppend(`- ${today} — Aufgabe auf [[${t.page}]] in der App ${iso ? 'auf ' + fmtDate(iso) + ' terminiert' : 'ohne festes Datum gesetzt'}: ${t.text.slice(0, 100)}${t.text.length > 100 ? ' …' : ''}`)}
+    ], `offen: Fälligkeit ${iso ? 'gesetzt' : 'entfernt'} (${t.page})`);
     repo = null; msg(iso ? `Fällig am ${wd(iso)} ${fmtDate(iso)}.` : 'Datum entfernt.', 'ok'); after && after();
   } catch(e){ msg(e.offline ? 'Offline – Datum ändern geht nur mit Netz.' : e.message, 'err') }
 }
-async function tickTask(t, btn, after){
-  if (!confirm(`Abhaken?\n\n${t.text.slice(0, 200)}`)) return;
-  btn.disabled = true; btn.textContent = '…';
+// Ticking waits 5 s before writing, so "Rückgängig" can cancel it without touching the vault.
+let pendingTick = null;
+function tickTask(t, btn, after){
+  flushTick();
+  const card = btn.closest('.task');
+  card.classList.add('ticked'); btn.textContent = '✓'; btn.disabled = true;
   const today = berlin().date;
-  try {
-    await updateFile(t.path, old => { if (old == null) throw new Error('Seite nicht gefunden.'); return tickLine(old, t, today) }, `offen: Aufgabe abgehakt (${t.page})`);
-    await updateFile('wiki/log.md', old => (old || '').replace(/\s*$/, '\n') + `- ${today} — Aufgabe auf [[${t.page}]] in der App abgehakt: ${t.text.slice(0, 120)}${t.text.length > 120 ? ' …' : ''}\n`, `log: Aufgabe abgehakt (${t.page})`);
-    repo = null; msg('Abgehakt.', 'ok'); after && after();
-  } catch(e){ btn.disabled = false; btn.textContent = ''; msg(e.offline ? 'Offline – Abhaken geht nur mit Netz.' : e.message, 'err') }
+  const run = async () => {
+    try {
+      await commitFiles([
+        {path: t.path, transform: old => { if (old == null) throw new Error('Seite nicht gefunden.'); return tickLine(old, t, today) }},
+        {path: 'wiki/log.md', transform: logAppend(`- ${today} — Aufgabe auf [[${t.page}]] in der App abgehakt: ${t.text.slice(0, 120)}${t.text.length > 120 ? ' …' : ''}`)}
+      ], `offen: Aufgabe abgehakt (${t.page})`);
+      repo = null; after && after();
+    } catch(e){
+      card.classList.remove('ticked'); btn.textContent = ''; btn.disabled = false;
+      msg(e.offline ? 'Offline – Abhaken geht nur mit Netz.' : e.message, 'err');
+    }
+  };
+  pendingTick = {run, timer: setTimeout(flushTick, 5000)};
+  msgAction('Abgehakt.', 'Rückgängig', () => {
+    if (!pendingTick || pendingTick.run !== run) return;
+    clearTimeout(pendingTick.timer); pendingTick = null;
+    card.classList.remove('ticked'); btn.textContent = ''; btn.disabled = false;
+  });
 }
+function flushTick(){ if (!pendingTick) return; const p = pendingTick; pendingTick = null; clearTimeout(p.timer); p.run() }
 
 // ---------- Heute ----------
 async function renderHeute(){
@@ -1691,6 +1750,7 @@ async function saveSettings(){
 let current = 'heute';
 function tab(name){
   if (activeMic) activeMic.stop();
+  flushTick();
   current = name;
   const navName = name === 'note' || name === 'symptom' ? 'heute' : name === 'newtask' ? 'offen' : name;
   $$('nav button').forEach(b => b.classList.toggle('on', b.dataset.tab === navName));
@@ -1743,7 +1803,7 @@ $('#n-save').onclick = saveNote; $('#s-save').onclick = saveObs; $('#set-save').
 $('#set-repo').value = cfg().repo; $('#set-branch').value = cfg().branch; $('#set-vault').value = store.get('vault', 'second-brain');
 window.addEventListener('online', flushOutbox);
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'hidden') { hiddenAt = Date.now(); return }
+  if (document.visibilityState === 'hidden') { hiddenAt = Date.now(); flushTick(); return }
   if (lock.enabled() && lock.key && hiddenAt && Date.now() - hiddenAt > 5 * 60 * 1000) return lock.lockNow();
   if (lock.locked()) return;
   flushOutbox(); if (current === 'heute') { repo = null; renderHeute() }

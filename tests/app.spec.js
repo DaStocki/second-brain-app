@@ -1,0 +1,212 @@
+// End-to-end tests against a simulated GitHub API and a fictional test vault (tests/fixtures/vault).
+const { test, expect } = require('@playwright/test');
+const { mockGitHub } = require('./mock-github');
+
+const NOW = new Date('2026-10-11T18:00:00Z'); // So 11.10.2026, 20:00 in Berlin
+
+async function open(page, { token = 't', storage = {}, github = {} } = {}) {
+  await page.clock.setFixedTime(NOW);
+  const gh = await mockGitHub(page, github);
+  await page.addInitScript(([token, storage]) => {
+    if (sessionStorage.getItem('init')) return; // only on the first load, so reload tests keep state
+    sessionStorage.setItem('init', '1');
+    if (token) localStorage.setItem('token', token);
+    for (const [k, v] of Object.entries(storage)) localStorage.setItem(k, v);
+  }, [token, storage]);
+  await page.goto('/');
+  return gh;
+}
+const lastLog = gh => gh.files['wiki/log.md'].trim().split('\n').pop();
+
+test('Heute: Status, Fälliges und Notizen', async ({ page }) => {
+  await open(page);
+  await expect(page.locator('#h-date')).toHaveText('So, 11.10.2026');
+  await expect(page.locator('#h-status .status')).toHaveText(/steht noch aus/);
+  await expect(page.locator('#h-due .task')).toHaveCount(1); // only the 14.10. task is due within 7 days
+  await expect(page.locator('#h-notes .card').first()).toContainText('Testnotiz');
+});
+
+test('Check-in: Assistent, Entwurf übersteht Neuladen, Speichern schreibt das Journal', async ({ page }) => {
+  const gh = await open(page);
+  await page.click('nav button[data-tab=checkin]');
+  await page.click('.scale.big button:text-is("6")');
+  await expect(page.locator('#ci-step .hint').first()).toHaveText('2/13');
+  await page.reload();
+  await page.click('nav button[data-tab=checkin]');
+  await expect(page.locator('#ci-step .hint').first()).toHaveText('2/13');
+  for (const v of ['3', '5', '4', '5']) { await page.click(`.scale.big button:text-is("${v}")`); await page.waitForTimeout(250) }
+  await page.click('text=– überspringen');
+  for (const v of ['6', '4', '7']) { await page.click(`.scale.big button:text-is("${v}")`); await page.waitForTimeout(250) }
+  await page.fill('#ci-step textarea', 'Ein Testtag');
+  for (let i = 0; i < 4; i++) await page.click('#ci-step button.primary');
+  await page.click('#ci-step button.primary:text("Speichern")');
+  await expect(page.locator('#h-status .status')).toHaveText(/gespeichert/);
+  const j = gh.files['journal/2026-10-11.md'];
+  expect(j).toContain('typ: checkin');
+  expect(j).toMatch(/stimmung: 6\nstress: 3\n/);
+  expect(j).toContain('arbeitsbelastung:\n');
+  expect(j).toContain('## Wichtigstes Ereignis\nEin Testtag');
+  expect(gh.commits).toEqual([{ message: 'checkin: 2026-10-11', files: ['journal/2026-10-11.md'] }]);
+});
+
+test('Notiz offline: landet in der Warteschlange und wird später gesendet', async ({ page }) => {
+  const gh = await open(page);
+  gh.offline = true;
+  await page.click('[data-go=note]');
+  await page.fill('#n-text', 'Offline-Notiz');
+  await page.click('#n-save');
+  await expect(page.locator('#msg')).toContainText('Offline');
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('outbox')).length)).toBe(1);
+  gh.offline = false;
+  await page.evaluate(() => window.dispatchEvent(new Event('online')));
+  await expect.poll(() => gh.files['journal/2026-10-11.md'] || '').toContain('Offline-Notiz');
+  expect(await page.evaluate(() => localStorage.getItem('outbox'))).toBe('[]');
+});
+
+test('Abhaken: Rückgängig schreibt nichts, sonst genau ein Commit mit Seite und Log', async ({ page }) => {
+  const gh = await open(page);
+  await page.click('nav button[data-tab=offen]');
+  const task = () => page.locator('#o-list .task').filter({ hasText: 'Fahrzeugbrief' });
+  await task().locator('.tick').click();
+  await expect(task()).toHaveClass(/ticked/);
+  await page.click('.msgbtn');
+  await expect(task()).not.toHaveClass(/ticked/);
+  await page.waitForTimeout(5500);
+  expect(gh.commits).toEqual([]);
+
+  await task().locator('.tick').click();
+  await expect.poll(() => gh.commits.length, { timeout: 8000 }).toBe(1);
+  expect(gh.commits[0]).toEqual({ message: 'offen: Aufgabe abgehakt (auto)', files: ['wiki/projects/auto.md', 'wiki/log.md'] });
+  expect(gh.files['wiki/projects/auto.md']).toContain('- [x] Fahrzeugbrief sicher ablegen');
+  expect(lastLog(gh)).toContain('in der App abgehakt: Fahrzeugbrief');
+  await expect(task()).toHaveCount(0);
+});
+
+test('Abhaken: beim Verlassen des Tabs sofort geschrieben', async ({ page }) => {
+  const gh = await open(page);
+  await page.click('nav button[data-tab=offen]');
+  await page.locator('#o-list .task').filter({ hasText: 'Rechtsschutz' }).locator('.tick').click();
+  await page.click('nav button[data-tab=heute]');
+  await expect.poll(() => gh.commits.length).toBe(1);
+  expect(gh.files['wiki/people/ich.md']).toMatch(/tags: \[persoenlich\]/); // last open task gone -> tag "offen" removed
+});
+
+test('Ein Commit wird bei gleichzeitigem Push neu versucht, nie erzwungen', async ({ page }) => {
+  const gh = await open(page);
+  gh.failNextRef = true;
+  await page.click('nav button[data-tab=offen]');
+  await page.locator('#o-list .task').filter({ hasText: 'Fahrzeugbrief' }).locator('.tick').click();
+  await expect.poll(() => gh.commits.length, { timeout: 8000 }).toBe(1);
+  expect(gh.files['wiki/projects/auto.md']).toContain('- [x] Fahrzeugbrief');
+});
+
+test('Fälligkeit setzen, überschreiben und entfernen', async ({ page }) => {
+  const gh = await open(page);
+  await page.click('nav button[data-tab=offen]');
+  const task = txt => page.locator('#o-list .task').filter({ hasText: txt });
+  await expect(task('Fahrzeugbrief').locator('button.due')).toHaveText('+ Datum');
+  await task('Fahrzeugbrief').locator('.duepick').evaluate(i => { i.value = '2026-10-20'; i.dispatchEvent(new Event('change')) });
+  await expect(task('Fahrzeugbrief').locator('button.due')).toHaveText('Di 20.10.2026');
+  expect(gh.files['wiki/projects/auto.md']).toContain('- [ ] Fahrzeugbrief sicher ablegen 📅 2026-10-20');
+  expect(gh.commits.at(-1)).toEqual({ message: 'offen: Fälligkeit gesetzt (auto)', files: ['wiki/projects/auto.md', 'wiki/log.md'] });
+
+  await task('Am 14.10.2026').locator('.duepick').evaluate(i => { i.value = '2026-10-15'; i.dispatchEvent(new Event('change')) });
+  await expect(task('Am 14.10.2026').locator('button.due')).toHaveText('Do 15.10.2026');
+
+  await task('Fahrzeugbrief').locator('.dueclear').click();
+  await expect(task('Fahrzeugbrief').locator('button.due')).toHaveText('+ Datum');
+  expect(gh.files['wiki/projects/auto.md']).toContain('- [ ] Fahrzeugbrief sicher ablegen\n');
+  expect(gh.commits).toHaveLength(3);
+});
+
+test('Datumserkennung: Unteraufgaben erben, Vergangenheitsdaten zählen nicht', async ({ page }) => {
+  await open(page);
+  await page.click('nav button[data-tab=offen]');
+  await expect(page.locator('#o-list .task').filter({ hasText: 'Termin bei der Werkstatt' }).locator('button.due')).toHaveText('Mo 30.11.2026');
+});
+
+test('Neue Aufgabe: Seitensuche (Umlaute egal), Datum, ein Commit', async ({ page }) => {
+  const gh = await open(page);
+  await page.click('[data-go=newtask]');
+  await expect(page.locator('#t-page-list .pl-item')).toHaveCount(1); // suggestion: "Ich"
+  await page.fill('#t-page-q', 'muller');
+  await expect(page.locator('#t-page-list .pl-item')).toHaveText([/Jana Müller/]);
+  await page.fill('#t-page-q', 'wohnung');
+  await expect(page.locator('#t-page-list .pl-item')).toHaveCount(2);
+  await page.fill('#t-page-q', 'readme');
+  await expect(page.locator('#t-page-list')).toContainText('Keine Seite gefunden');
+  await page.fill('#t-page-q', 'jana');
+  await page.press('#t-page-q', 'Enter');
+  await page.fill('#t-text', 'Geburtstagsgeschenk\nbesorgen');
+  await page.fill('#t-due', '2026-11-02');
+  await page.click('#t-save');
+  await expect.poll(() => gh.commits.length).toBe(1);
+  const pg = gh.files['wiki/people/jana-mueller.md'];
+  expect(pg).toContain('## Offene Punkte\n\n- [ ] Geburtstagsgeschenk besorgen 📅 2026-11-02\n\n## Quellen');
+  expect(pg).toContain('tags: [familie, offen]');
+  expect(gh.commits[0].files).toEqual(['wiki/people/jana-mueller.md', 'wiki/log.md']);
+  await page.click('#o-new'); // after saving, the app shows the Offen tab
+  await expect(page.locator('#t-page-sel')).toContainText('Jana Müller'); // last used page preselected
+});
+
+test('PIN: Token verschlüsselt, Sperre, falsche und richtige PIN', async ({ page }) => {
+  await open(page, { token: '', github: { token: 'geheim' } });
+  await page.fill('#set-token', 'geheim');
+  await page.click('#set-save');
+  await expect(page.locator('#msg')).toContainText('Verbunden');
+  await page.fill('#pin-new', '482913'); await page.fill('#pin-new2', '482913');
+  await page.click('#pin-set');
+  await expect(page.locator('#pin-state')).toContainText('PIN ist aktiv');
+  const leak = await page.evaluate(() => Object.keys(localStorage).some(k => localStorage.getItem(k).includes('geheim')));
+  expect(leak).toBe(false);
+  await page.reload();
+  await expect(page.locator('#lock')).toBeVisible();
+  await page.fill('#lock-pin', '000000'); await page.click('#lock-go');
+  await expect(page.locator('#lock-err')).toHaveText('Falsche PIN.');
+  await page.fill('#lock-pin', '482913'); await page.click('#lock-go');
+  await expect(page.locator('#h-status .status')).toBeVisible();
+});
+
+test('Spracheingabe: Diktat landet im Feld', async ({ page }) => {
+  await page.addInitScript(() => {
+    window.SpeechRecognition = window.webkitSpeechRecognition = class {
+      start() { setTimeout(() => this.onresult({ resultIndex: 0, results: [Object.assign([{ transcript: 'heute war gut' }], { isFinal: true })] }), 50) }
+      stop() { setTimeout(() => this.onend(), 10) }
+    };
+  });
+  await open(page);
+  await page.click('[data-go=note]');
+  await page.fill('#n-text', 'Notiz:');
+  await page.click('#tab-note .mic');
+  await expect(page.locator('#n-text')).toHaveValue('Notiz: Heute war gut');
+});
+
+test('Spracheingabe: ohne Unterstützung im Browser kein Knopf', async ({ page }) => {
+  await page.addInitScript(() => { delete window.SpeechRecognition; delete window.webkitSpeechRecognition });
+  await open(page);
+  await page.click('[data-go=note]');
+  await expect(page.locator('.mic')).toHaveCount(0);
+});
+
+test('Design und Schriftgröße bleiben erhalten, kein seitliches Scrollen', async ({ page }) => {
+  await open(page);
+  await page.click('nav button[data-tab=settings]');
+  await page.click('[data-theme-choice=steel]');
+  await page.click('[data-scale="1.3"]');
+  await page.reload();
+  expect(await page.evaluate(() => document.documentElement.dataset.theme)).toBe('steel');
+  expect(await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--zoom').trim())).toBe('1.3');
+  for (const t of ['heute', 'checkin', 'offen', 'verlauf', 'settings']) {
+    await page.click(`nav button[data-tab=${t}]`);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  }
+});
+
+test('Verlauf: neun Diagramme, Antippen zeigt den Tageswert', async ({ page }) => {
+  await open(page);
+  await page.click('nav button[data-tab=verlauf]');
+  await expect(page.locator('.chart')).toHaveCount(9);
+  const box = await page.locator('.chart svg').first().boundingBox();
+  await page.mouse.click(box.x + box.width * 0.5, box.y + box.height / 2);
+  await expect(page.locator('.ccap').first()).toHaveText(/\d{2}\.\d{2}\.: /);
+});
