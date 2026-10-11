@@ -633,6 +633,17 @@ button.due.add:hover{color:var(--lit)}
 .dueclear:hover{color:var(--err)}
 .tbody .hint{position:relative}
 
+/* new task */
+.quick button.wide{grid-column:1/-1}
+select{width:100%;padding:12px 14px;border:0;border-radius:14px;font:400 .95rem var(--sans);color:var(--ink);background:rgba(4,17,60,.55);box-shadow:inset 0 0 0 1px rgba(164,216,255,.2);appearance:auto}
+select:focus{outline:none;box-shadow:inset 0 0 0 1px rgba(200,228,255,.6),0 0 0 4px rgba(39,91,187,.35)}
+select option,select optgroup{background:#081d5c;color:#fdfdff}
+[data-theme="steel"] select{border:1px solid rgba(0,0,0,.5);border-radius:.75rem;background:var(--scan),var(--well);box-shadow:inset 0 2px 10px rgba(0,0,0,.65)}
+[data-theme="steel"] select option,[data-theme="steel"] select optgroup{background:#23272a}
+[data-theme="clinical"] select{border:1px solid var(--line-2);border-radius:12px;background:var(--ink-1);box-shadow:none}
+[data-theme="clinical"] select option,[data-theme="clinical"] select optgroup{background:#0c1121}
+#o-new{margin-right:6px}
+
 .hidden{display:none!important}
 </style>
 </head>
@@ -664,7 +675,7 @@ button.due.add:hover{color:var(--lit)}
   <h1 id="h-date">Heute</h1>
   <div id="outbox" class="card hint hidden"></div>
   <div id="h-status" class="card"></div>
-  <div class="quick"><button data-go="note">+ Notiz</button><button data-go="symptom">+ Beobachtung</button></div>
+  <div class="quick"><button data-go="note">+ Notiz</button><button data-go="symptom">+ Beobachtung</button><button data-go="newtask" class="wide">+ Aufgabe</button></div>
   <div id="h-due"></div>
   <div id="h-notes"></div>
 </section>
@@ -676,6 +687,19 @@ button.due.add:hover{color:var(--lit)}
   </div>
   <div id="ci-step" class="card"></div>
   <button class="ghost hidden" id="ci-reset">Entwurf verwerfen</button>
+</section>
+
+<section id="tab-newtask" class="hidden">
+  <h1>Neue Aufgabe</h1>
+  <div class="card">
+    <label class="q" for="t-text">Was ist zu tun?</label>
+    <textarea id="t-text" rows="3" placeholder="z. B. Überweisung beim Hausarzt holen"></textarea>
+    <label class="q" for="t-page" style="margin-top:14px">Auf welche Seite? <span class="hint">die Aufgabe landet dort unter „Offene Aufgaben“ bzw. „Offene Punkte“</span></label>
+    <select id="t-page"></select>
+    <label class="q" for="t-due" style="margin-top:14px">Fällig am <span class="hint">optional</span></label>
+    <input type="date" id="t-due">
+  </div>
+  <button class="primary" id="t-save">Aufgabe anlegen</button>
 </section>
 
 <section id="tab-note" class="hidden">
@@ -706,7 +730,7 @@ button.due.add:hover{color:var(--lit)}
 </section>
 
 <section id="tab-offen" class="hidden">
-  <div class="row"><h1>Offene Aufgaben</h1><button class="ghost" id="o-reload" style="flex:0 0 auto">Neu laden</button></div>
+  <div class="row"><h1>Offene Aufgaben</h1><button class="ghost" id="o-new" data-go="newtask" style="flex:0 0 auto">+ Neu</button><button class="ghost" id="o-reload" style="flex:0 0 auto">Neu laden</button></div>
   <div id="o-filter"></div>
   <div id="o-list" class="hint">Noch nicht geladen.</div>
 </section>
@@ -891,7 +915,12 @@ function applyCheckin(old, date, kurz, answers){
 const OPS = {
   checkin: o => updateFile(`journal/${o.date}.md`, old => applyCheckin(old, o.date, o.kurz, o.answers), `checkin: ${o.date}`),
   note: o => updateFile(`journal/${o.date}.md`, old => addToNotes(old, o.date, o.time, o.text), `journal: ${o.date}`),
-  obs: o => updateFile(`journal/${o.date}.md`, old => addObservation(old, o.date, o.line), `beobachtung: ${o.date}`)
+  obs: o => updateFile(`journal/${o.date}.md`, old => addObservation(old, o.date, o.line), `beobachtung: ${o.date}`),
+  task: async o => {
+    const page = o.path.split('/').pop().replace(/\.md$/, '');
+    await updateFile(o.path, old => { if (old == null) { const e = new Error('Seite nicht gefunden.'); e.permanent = true; throw e } return addTaskLine(old, {path: o.path, text: o.text, due: o.due}, o.today) }, `offen: neue Aufgabe (${page})`);
+    await updateFile('wiki/log.md', old => (old || '').replace(/\s*$/, '\n') + `- ${o.today} — Neue Aufgabe auf [[${page}]] in der App angelegt${o.due ? ' (fällig ' + fmtDate(o.due) + ')' : ''}: ${o.text.slice(0, 120)}${o.text.length > 120 ? ' …' : ''}\n`, `log: neue Aufgabe (${page})`);
+  }
 };
 const outbox = {
   get(){ try { return JSON.parse(lock.get('outbox', '[]')) } catch { return [] } },
@@ -1416,6 +1445,63 @@ function startMic(ta, btn, live){
   try { rec.start() } catch (e) { rec.onend(); msg('Spracherkennung konnte nicht starten.', 'err') }
 }
 
+
+// ---------- New task: appended to the page's "## Offene Aufgaben/Punkte" section ----------
+function addTaskLine(text, task, today){
+  const line = `- [ ] ${task.text}${task.due ? ` 📅 ${task.due}` : ''}`;
+  const lines = text.split('\n');
+  const h = lines.findIndex(l => /^## Offene (Aufgaben|Punkte)\b/.test(l));
+  if (h >= 0) {
+    let end = lines.findIndex((l, i) => i > h && /^## /.test(l)); if (end < 0) end = lines.length;
+    let at = -1;
+    for (let i = h + 1; i < end; i++) {
+      if (/^\s*- \[[ xX]\]/.test(lines[i])) at = i + 1;
+      else if (at === i && /^\s+\S/.test(lines[i])) at = i + 1;   // continuation / subtasks of the last task
+    }
+    if (at < 0) { at = h + 1; if (lines[at] === '') at++; }
+    lines.splice(at, 0, line);
+  } else {
+    const heading = task.path.includes('/people/') ? '## Offene Punkte' : '## Offene Aufgaben';
+    const q = lines.findIndex(l => /^## Quellen\b/.test(l));
+    if (q >= 0) lines.splice(q, 0, heading, '', line, '');
+    else { while (lines.length && lines[lines.length - 1] === '') lines.pop(); lines.push('', heading, '', line, '') }
+  }
+  return lines.join('\n').replace(/^(---\n[\s\S]*?\n---)/, fm => fm
+    .replace(/^last-updated:.*$/m, `last-updated: ${today}`)
+    .replace(/^tags:\s*\[([^\]]*)\]/m, (m, l) => { const t = l.split(',').map(s => s.trim()).filter(Boolean); return t.includes('offen') ? m : `tags: [${[...t, 'offen'].join(', ')}]` }));
+}
+const TASK_GROUPS = [['wiki/projects/', 'Projekte'], ['wiki/people/', 'Personen'], ['wiki/concepts/', 'Themen']];
+async function openNewTask(){
+  const sel = $('#t-page');
+  $('#t-text').value = lock.get('t-draft', ''); $('#t-due').value = '';
+  setTimeout(() => $('#t-text').focus(), 50);
+  if (sel.options.length > 1 && repo) return;
+  sel.innerHTML = '<option value="">Lade Seiten …</option>';
+  try {
+    const r = await loadRepo(); sel.innerHTML = '';
+    const last = store.get('t-page', 'wiki/people/ich.md');
+    for (const [prefix, label] of TASK_GROUPS) {
+      const og = document.createElement('optgroup'); og.label = label;
+      r.files.filter(f => f.path.startsWith(prefix) && !/\/README\.md$/.test(f.path)).map(f => ({path: f.path, title: parseFm(f.text).title || f.path.split('/').pop().replace(/\.md$/, '')}))
+        .sort((a, b) => a.title.localeCompare(b.title, 'de')).forEach(f => { const o = document.createElement('option'); o.value = f.path; o.textContent = f.title; og.appendChild(o) });
+      sel.appendChild(og);
+    }
+    if ([...sel.options].some(o => o.value === last)) sel.value = last;
+  } catch(e){ sel.innerHTML = `<option value="${store.get('t-page', 'wiki/people/ich.md')}">${e.offline ? 'Offline – zuletzt genutzte Seite' : 'Seiten nicht geladen'}</option>` }
+}
+async function saveTask(){
+  const text = $('#t-text').value.replace(/\s*\n+\s*/g, ' ').trim(), path = $('#t-page').value, due = $('#t-due').value;
+  if (!text) return msg('Was ist zu tun?', 'err');
+  if (!path) return msg('Bitte eine Seite wählen.', 'err');
+  $('#t-save').disabled = true;
+  try {
+    const r = await submit({kind: 'task', path, text, due: due || null, today: berlin().date});
+    store.set('t-page', path); lock.set('t-draft', ''); $('#t-text').value = '';
+    doneMsg(r, 'Aufgabe angelegt.'); tab('offen');
+  } catch(e){ msg(e.message, 'err') }
+  $('#t-save').disabled = false;
+}
+
 // ---------- PIN lock: token, drafts, outbox and cache are encrypted with a key derived from the PIN ----------
 const u8b64 = u => { let t = ''; u.forEach(c => t += String.fromCharCode(c)); return btoa(t) };
 const b64u8 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -1427,7 +1513,7 @@ const crypt = {
   async enc(key, text){ const iv = crypto.getRandomValues(new Uint8Array(12)); const ct = new Uint8Array(await crypto.subtle.encrypt({name: 'AES-GCM', iv}, key, new TextEncoder().encode(text))); return u8b64(iv) + '.' + u8b64(ct) },
   async dec(key, s){ const [iv, ct] = s.split('.').map(b64u8); return new TextDecoder().decode(await crypto.subtle.decrypt({name: 'AES-GCM', iv}, key, ct)) }
 };
-const SECURE_KEYS = ['token', 'ci-draft', 'outbox', 'n-draft'];
+const SECURE_KEYS = ['token', 'ci-draft', 'outbox', 'n-draft', 't-draft'];
 const lock = {
   key: null, mem: {},
   enabled(){ return !!store.get('pin', '') },
@@ -1521,14 +1607,15 @@ let current = 'heute';
 function tab(name){
   if (activeMic) activeMic.stop();
   current = name;
-  const navName = name === 'note' || name === 'symptom' ? 'heute' : name;
+  const navName = name === 'note' || name === 'symptom' ? 'heute' : name === 'newtask' ? 'offen' : name;
   $$('nav button').forEach(b => b.classList.toggle('on', b.dataset.tab === navName));
-  ['heute','checkin','note','symptom','offen','verlauf','settings'].forEach(t => $('#tab-'+t).classList.toggle('hidden', t !== name));
+  ['heute','checkin','note','symptom','newtask','offen','verlauf','settings'].forEach(t => $('#tab-'+t).classList.toggle('hidden', t !== name));
   if (name === 'heute') renderHeute();
   if (name === 'checkin') renderCheckin();
   if (name === 'offen') showOffen();
   if (name === 'verlauf') showVerlauf();
   if (name === 'settings') renderPushCard().catch(() => {});
+  if (name === 'newtask') openNewTask();
   if (name === 'note') { const n = berlin(); $('#n-date').value = n.date; $('#n-time').value = n.time; $('#n-text').value = lock.get('n-draft', ''); setTimeout(() => $('#n-text').focus(), 50) }
   window.scrollTo(0, 0);
   moveGlide();
@@ -1575,7 +1662,9 @@ $('#pin-remove').onclick = async () => { if (confirm('PIN entfernen? Der Token l
 $('#pin-lock').onclick = () => lock.lockNow();
 $('#push-on').onclick = enablePush; $('#push-off').onclick = disablePush;
 initObs();
-['#n-text', '#s-text'].forEach(q => attachMic($(q)));
+['#n-text', '#s-text', '#t-text'].forEach(q => attachMic($(q)));
+$('#t-save').onclick = saveTask;
+$('#t-text').oninput = e => lock.set('t-draft', e.target.value);
 let started = false;
 function startApp(){
   loadDraft();
