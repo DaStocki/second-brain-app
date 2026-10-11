@@ -161,6 +161,12 @@ a.plink{color:var(--acc)}
     <button class="primary" id="set-save">Speichern und testen</button>
   </div>
   <div class="card">
+    <label class="q">Benachrichtigungen</label>
+    <div class="hint" id="push-state"></div>
+    <button class="primary" id="push-on">Check-in-Erinnerung einschalten</button>
+    <button class="ghost hidden" id="push-off" style="margin-top:10px">Ausschalten</button>
+  </div>
+  <div class="card">
     <label class="q">PIN-Sperre</label>
     <div class="hint" id="pin-state"></div>
     <input type="password" id="pin-new" inputmode="numeric" autocomplete="new-password" placeholder="Neue PIN (6 Ziffern empfohlen)" style="margin-top:10px">
@@ -710,6 +716,48 @@ function metricChart(rows, key, label, start, end){
   return card;
 }
 
+
+// ---------- Push notifications: the subscription is stored in the private vault, the GitHub Action sends ----------
+const VAPID_PUBLIC_KEY = 'BHTwwwLQcoD6SE50LxjxadgZ91PCImfOtR7Pjh0ogwRrVfMBK1hsTqRzRetqvidJvDdNB0W2a-nECbgNh_QcQe8';
+const SUBS_PATH = '.github/push-subscriptions.json';
+const pushSupported = () => 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window && location.protocol === 'https:';
+const b64url = s => Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/') + '='.repeat((4 - s.length % 4) % 4)), c => c.charCodeAt(0));
+function deviceName(){ const ua = navigator.userAgent; const m = ua.match(/Android [\d.]+; ([^;)]+)/); return (m ? m[1].trim() : /Mac/.test(ua) ? 'Mac' : 'Gerät') + (/Brave/.test(ua) || navigator.brave ? ' (Brave)' : /Chrome/.test(ua) ? ' (Chrome)' : '') }
+async function renderPushCard(){
+  const st = $('#push-state'), on = $('#push-on'), off = $('#push-off');
+  if (!pushSupported()) { st.textContent = 'Auf diesem Gerät oder in diesem Browser nicht verfügbar. Die App muss über https geöffnet sein, am besten installiert.'; on.classList.add('hidden'); off.classList.add('hidden'); return }
+  const reg = await navigator.serviceWorker.ready, sub = await reg.pushManager.getSubscription();
+  const perm = Notification.permission;
+  st.textContent = sub ? 'Aktiv: Erinnerung um 20:47, wenn der Check-in noch fehlt.' : perm === 'denied' ? 'Benachrichtigungen sind für diese Seite blockiert – in den Browser-Einstellungen erlauben.' : 'Aus.';
+  on.classList.toggle('hidden', !!sub || perm === 'denied'); off.classList.toggle('hidden', !sub);
+}
+async function enablePush(){
+  const btn = $('#push-on'); btn.disabled = true;
+  try {
+    if (await Notification.requestPermission() !== 'granted') throw new Error('Benachrichtigungen nicht erlaubt.');
+    const reg = await navigator.serviceWorker.ready;
+    let sub = await reg.pushManager.getSubscription();
+    if (!sub) sub = await reg.pushManager.subscribe({userVisibleOnly: true, applicationServerKey: b64url(VAPID_PUBLIC_KEY)});
+    const entry = {device: deviceName(), added: berlin().date, subscription: sub.toJSON()};
+    await updateFile(SUBS_PATH, old => { const list = old ? JSON.parse(old) : []; return JSON.stringify([...list.filter(s => s.subscription.endpoint !== entry.subscription.endpoint), entry], null, 2) + '\n' }, 'app: Push-Benachrichtigung aktiviert');
+    msg('Benachrichtigungen aktiv.', 'ok');
+  } catch(e){ msg(/push service|AbortError|registration/i.test(e.message + e.name) ? 'Push-Anmeldung fehlgeschlagen. In Brave: Einstellungen → Datenschutz → „Google-Dienste für Push-Nachrichten verwenden“ einschalten.' : e.message, 'err') }
+  btn.disabled = false; renderPushCard();
+}
+async function disablePush(){
+  const btn = $('#push-off'); btn.disabled = true;
+  try {
+    const reg = await navigator.serviceWorker.ready, sub = await reg.pushManager.getSubscription();
+    if (sub) {
+      const endpoint = sub.endpoint;
+      await updateFile(SUBS_PATH, old => { const list = old ? JSON.parse(old) : []; return JSON.stringify(list.filter(s => s.subscription.endpoint !== endpoint), null, 2) + '\n' }, 'app: Push-Benachrichtigung deaktiviert');
+      await sub.unsubscribe();
+    }
+    msg('Benachrichtigungen aus.', 'ok');
+  } catch(e){ msg(e.message, 'err') }
+  btn.disabled = false; renderPushCard();
+}
+
 // ---------- PIN lock: token, drafts, outbox and cache are encrypted with a key derived from the PIN ----------
 const u8b64 = u => { let t = ''; u.forEach(c => t += String.fromCharCode(c)); return btoa(t) };
 const b64u8 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -821,6 +869,7 @@ function tab(name){
   if (name === 'checkin') renderCheckin();
   if (name === 'offen') showOffen();
   if (name === 'verlauf') showVerlauf();
+  if (name === 'settings') renderPushCard().catch(() => {});
   if (name === 'note') { const n = berlin(); $('#n-date').value = n.date; $('#n-time').value = n.time; $('#n-text').value = lock.get('n-draft', ''); setTimeout(() => $('#n-text').focus(), 50) }
   window.scrollTo(0, 0);
 }
@@ -846,13 +895,16 @@ $('#lock-reset').onclick = resetApp;
 $('#pin-set').onclick = setPinFromForm;
 $('#pin-remove').onclick = async () => { if (confirm('PIN entfernen? Der Token liegt dann wieder unverschlüsselt im Browser.')) { await lock.removePin(); renderPinCard(); msg('PIN entfernt.', 'ok') } };
 $('#pin-lock').onclick = () => lock.lockNow();
+$('#push-on').onclick = enablePush; $('#push-off').onclick = disablePush;
 initObs();
 let started = false;
 function startApp(){
   loadDraft();
   $('#set-token').value = cfg().token;
   renderPinCard();
-  if (!started) { started = true; tab(cfg().token ? 'heute' : 'settings') } else tab(current);
+  const want = new URLSearchParams(location.search).get('tab');
+  if (want) history.replaceState(null, '', location.pathname);
+  if (!started) { started = true; tab(!cfg().token ? 'settings' : ['heute','checkin','offen','verlauf'].includes(want) ? want : 'heute') } else tab(want && ['heute','checkin','offen','verlauf'].includes(want) ? want : current);
   flushOutbox();
 }
 if (lock.enabled()) showLock(); else lock.loadAll().then(startApp);
