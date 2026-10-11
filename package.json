@@ -3,7 +3,8 @@
   "private": true,
   "description": "PWA-Add-on zum Second-Brain-Vault. Die App selbst braucht keinen Build; package.json dient nur den Tests.",
   "scripts": {
-    "test": "playwright test"
+    "test": "playwright test --grep-invert @visual",
+    "test:visual": "playwright test --grep @visual"
   },
   "devDependencies": {
     "@playwright/test": "1.63.0"
