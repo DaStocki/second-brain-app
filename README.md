@@ -10,7 +10,7 @@ Eine einzelne HTML-Datei (`index.html`, kein Build) als Ergänzung zu Obsidian. 
 ## Entscheidungen (11.10.2026)
 - Hosting: GitHub Pages aus dem öffentlichen Repo `DaStocki/second-brain-app` (nur Code), https://dastocki.github.io/second-brain-app/ – Artifact verworfen, weil es api.github.com blockiert
 - PWA, Oberfläche auf Deutsch, Token nur lokal im Gerät (fine-grained, `contents: write` nur für dieses Repo)
-- Der Wiki-Ingest bleibt bei Mnemo (`/ingest-journal`); die App schreibt nur in `journal/`
+- Der Wiki-Ingest bleibt bei Mnemo (`/ingest-journal`, `/ingest`); die App schreibt in `journal/`, Aufgaben in `wiki/` und Fotos nach `raw/scans/`
 - Journaltexte werden nur angehängt, nie umgeschrieben; Commits gehen auf `main`, nie Force
 
 ## Stand
@@ -18,6 +18,7 @@ Eine einzelne HTML-Datei (`index.html`, kein Build) als Ergänzung zu Obsidian. 
 - [x] Check-in: eine Frage pro Bildschirm, Tipp auf die Zahl springt weiter, „kurz“, Zusammenfassung vor dem Speichern; Entwurf bleibt auf dem Gerät
 - [x] Notiz (`/journal`), Beobachtung (`/symptom`, nur Journalteil)
 - [x] Offline: Check-in, Notiz und Beobachtung landen ohne Netz in einer Warteschlange und werden automatisch gesendet
+- [x] Foto („+ Foto“ auf Heute): Brief, Beleg oder Beweisfoto mit der Kamera aufnehmen oder aus der Galerie wählen, mehrere Seiten nacheinander, Vorschau (antippen vergrößert) mit „Entfernen“. Jedes Bild wird auf dem Gerät verkleinert (lange Kante höchstens 2400 px, JPEG, Ziel unter 1 MB; dabei fallen auch die EXIF-Daten samt Standort weg) und landet als `raw/scans/IMG_JJJJMMTT_HHMMSS_<Seite>.jpg` im Vault. Das optionale Feld „Was ist das?“ steht in der Commit-Nachricht (`scan: 2 Fotos aus der App (TK Krankengeld)`). Benennen nach dem Schema und Ingest macht Mnemo (`/ingest`, `/lint`). Ohne Netz warten die Fotos in IndexedDB (mit PIN verschlüsselt) und werden später gesendet
 - [x] Neue Aufgabe („+ Aufgabe“ auf Heute, „+ Neu“ auf Offen): Text (mit Diktat), Seite per Suche aus Projekten/Personen/Themen (zuletzt genutzte zuerst), optional Datum. Landet als `- [ ] …` (ggf. mit `📅 YYYY-MM-DD`) unter „## Offene Aufgaben“ bzw. „## Offene Punkte“ der Seite, sonst wird der Abschnitt vor „## Quellen“ angelegt; setzt `offen`-Tag und `last-updated`, Eintrag in `wiki/log.md`; geht offline in die Warteschlange
 - [x] Offen: `- [ ]`-Aufgaben aus `wiki/` (ohne log/index), Datumserkennung wie `/offen`, Filter nach Bereich, Abhaken mit 5 s „Rückgängig“ (geschrieben wird erst danach, beim Tab-Wechsel oder Schließen sofort); setzt `last-updated`, entfernt `offen` beim letzten Haken; Seitenname öffnet die Seite in Obsidian; Datum antippen bzw. „+ Datum“ setzt oder ändert die Fälligkeit, „×“ entfernt sie (schreibt `📅 YYYY-MM-DD` ans Zeilenende, das hat Vorrang vor erkannten Daten im Text; `/offen` liest es genauso)
 - [x] Kalender: Monatsraster (Mo–So, ‹ › blättert). Pro Tag: Punkt für fällige Aufgaben (Zahl ab zwei, rot wenn überfällig), Punkt für Notizen/Beobachtungen, Balken in der Farbe der Stimmung aus dem Check-in (1–4 / 5–6 / 7–10). Tipp auf einen Tag zeigt seine Aufgaben (abhaken, Datum ändern), die Check-in-Werte mit wichtigstem Ereignis, Notizen und Beobachtungen; ab heute „+ Aufgabe für …“ mit vorausgefülltem Datum, danach zurück in den Kalender. Liest nur, was ohnehin im Repo steht; Google-Termine erscheinen nicht
@@ -46,7 +47,10 @@ Die 20:47-Routine und `/checkin` erkennen einen Check-in aus der App und überne
 - Journal-Einträge (Check-in, Notiz, Beobachtung): ein Commit über die Contents-API.
 - Wiki-Änderungen (Abhaken, Fälligkeit, neue Aufgabe): Seite **und** Eintrag in `wiki/log.md` in **einem** Commit über die Git-Data-API (Tree, Commit, Ref vorspulen). Hat jemand anderes (Obsidian, Mnemo) in der Zwischenzeit gepusht, wird alles neu gelesen und erneut versucht; nie erzwungen.
 
+- Fotos: jedes Bild als Blob hochgeladen (Git-Data-API), dann alle Seiten in **einem** Commit nach `raw/scans/`; kein Eintrag in `wiki/log.md`, den schreibt der Ingest.
+
 ## Grenzen
+- Fotos werden immer verkleinert; das Original in voller Auflösung kommt nicht ins Vault. HEIC aus der Galerie kann nicht jeder Browser lesen, dann erscheint eine Meldung
 - Füllwörter werden nicht entfernt (wie `/journal -roh`); Bereinigung später durch Mnemo auf Zuruf
 - `/symptom` ergänzt in der App nur `journal/`, die Tabelle in `wiki/concepts/beobachtungen.md` pflegt Mnemo beim nächsten Lauf
 

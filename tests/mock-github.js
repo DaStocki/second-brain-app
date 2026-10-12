@@ -19,7 +19,7 @@ function loadFixture(dir = path.join(__dirname, 'fixtures', 'vault')) {
 }
 
 async function mockGitHub(page, opts = {}) {
-  const state = { files: loadFixture(), commits: [], offline: false, failNextRef: false, head: 'c0', trees: {}, newCommits: {}, n: 0 };
+  const state = { files: loadFixture(), commits: [], offline: false, failNextRef: false, head: 'c0', trees: {}, newCommits: {}, blobs: {}, binary: {}, n: 0 };
   const headers = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': '*' };
   await page.route('https://api.github.com/**', async route => {
     const req = route.request();
@@ -38,6 +38,7 @@ async function mockGitHub(page, opts = {}) {
       const s = p.split('/').pop(); const t = Object.values(state.files).find(x => sha1(x) === s);
       return t == null ? json({}, 404) : json({ content: Buffer.from(t).toString('base64') });
     }
+    if (p === '/git/blobs' && req.method() === 'POST') { const sha = 'b' + (++state.n); state.blobs[sha] = Buffer.from(body().content, 'base64'); return json({ sha }) }
     if (p.startsWith('/git/ref/heads/')) return json({ object: { sha: state.head } });
     if (p.startsWith('/git/commits/') && req.method() === 'GET') return json({ tree: { sha: 'tree-' + p.split('/').pop() } });
     if (p === '/git/trees' && req.method() === 'POST') { const sha = 't' + (++state.n); state.trees[sha] = body().tree; return json({ sha }) }
@@ -46,7 +47,8 @@ async function mockGitHub(page, opts = {}) {
       if (state.failNextRef) { state.failNextRef = false; state.head = 'c-other-' + (++state.n); return json({ message: 'Update is not a fast forward' }, 422) }
       const b = body(); const c = state.newCommits[b.sha];
       if (!c || c.parents[0] !== state.head) return json({ message: 'Update is not a fast forward' }, 422);
-      for (const e of state.trees[c.tree]) state.files[e.path] = e.content;
+      // text files arrive as content, binary ones (photos) as the sha of an uploaded blob; those are kept in `binary`
+      for (const e of state.trees[c.tree]) { if (e.sha) state.binary[e.path] = state.blobs[e.sha]; else state.files[e.path] = e.content }
       state.commits.push({ message: c.message, files: state.trees[c.tree].map(e => e.path) });
       state.head = b.sha; return json({ object: { sha: b.sha } });
     }

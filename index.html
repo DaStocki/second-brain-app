@@ -45,7 +45,7 @@
   <h1 id="h-date">Heute</h1>
   <div id="outbox" class="card hint hidden"></div>
   <div id="h-status" class="card"></div>
-  <div class="quick"><button data-go="note">+ Notiz</button><button data-go="symptom">+ Beobachtung</button><button data-go="newtask" class="wide">+ Aufgabe</button></div>
+  <div class="quick"><button data-go="note">+ Notiz</button><button data-go="symptom">+ Beobachtung</button><button data-go="newtask">+ Aufgabe</button><button data-go="scan">+ Foto</button></div>
   <div id="h-due"></div>
   <div id="h-notes"></div>
 </section>
@@ -80,6 +80,20 @@
   <div class="card row"><input type="date" id="n-date" aria-label="Datum"><input type="text" id="n-time" placeholder="HH:MM" aria-label="Uhrzeit"></div>
   <div class="card"><textarea id="n-text" rows="5" placeholder="Frei schreiben, ohne Schema"></textarea></div>
   <button class="primary" id="n-save">Speichern</button>
+</section>
+
+<section id="tab-scan" class="hidden">
+  <h1>Foto ablegen</h1>
+  <div class="card">
+    <div class="hint">Brief, Beleg oder Beweisfoto: ganze Seite, flach, gutes Licht, ein Foto pro Seite. Landet verkleinert in <code>raw/scans/</code>; Mnemo benennt und verarbeitet es beim nächsten <code>/ingest</code>.</div>
+    <input type="file" id="p-cam" accept="image/*" capture="environment" class="hidden">
+    <input type="file" id="p-pick" accept="image/*" multiple class="hidden">
+    <div id="p-list" class="shots"></div>
+    <div class="row" style="margin-top:12px"><button type="button" class="ghost" id="p-take">Foto aufnehmen</button><button type="button" class="ghost" id="p-choose">Aus Galerie</button></div>
+    <label class="q" for="p-hint" style="margin-top:14px">Was ist das? <span class="hint">optional, hilft beim Benennen</span></label>
+    <input type="text" id="p-hint" placeholder="z. B. TK Krankengeld" maxlength="80">
+  </div>
+  <button class="primary" id="p-save">Ablegen</button>
 </section>
 
 <section id="tab-symptom" class="hidden">
@@ -232,6 +246,7 @@ async function commitFiles(changes, message){
     const base = (await gh(`git/commits/${head}`)).tree.sha;
     const tree = [];
     for (const ch of changes){
+      if (ch.sha) { tree.push({path: ch.path, mode: '100644', type: 'blob', sha: ch.sha}); continue }   // binary blob, already uploaded
       const cur = await gh(`contents/${ch.path}?ref=${head}`, {allow404: true});
       const old = cur ? b64d(cur.content) : null;
       const next = ch.transform(old);
@@ -340,6 +355,17 @@ const OPS = {
       {path: o.path, transform: old => { if (old == null) { const e = new Error('Seite nicht gefunden.'); e.permanent = true; throw e } return addTaskLine(old, {path: o.path, text: o.text, due: o.due}, o.today) }},
       {path: 'wiki/log.md', transform: logAppend(`- ${o.today} — Neue Aufgabe auf [[${page}]] in der App angelegt${o.due ? ' (fällig ' + fmtDate(o.due) + ')' : ''}: ${o.text.slice(0, 120)}${o.text.length > 120 ? ' …' : ''}`)}
     ], `offen: neue Aufgabe (${page})`);
+  },
+  // Photos are uploaded as blobs, then added to raw/scans/ in one commit; the bytes wait in photoStore until then.
+  scan: async o => {
+    const changes = [];
+    for (const name of o.names) {
+      const bytes = await photoStore.get(name);
+      if (!bytes) { const e = new Error('Foto ist nicht mehr auf dem Gerät.'); e.permanent = true; throw e }
+      changes.push({path: `raw/scans/${name}`, sha: (await gh('git/blobs', {method: 'POST', body: JSON.stringify({content: u8b64(bytes), encoding: 'base64'})})).sha});
+    }
+    await commitFiles(changes, `scan: ${o.names.length} Foto${o.names.length > 1 ? 's' : ''} aus der App${o.hint ? ' (' + o.hint + ')' : ''}`);
+    for (const name of o.names) await photoStore.del(name);
   }
 };
 const outbox = {
@@ -439,6 +465,92 @@ async function saveNote(){
   try { const r = await submit({kind:'note', date, time, text}); $('#n-text').value=''; lock.set('n-draft',''); doneMsg(r, 'Gespeichert.'); tab('heute') }
   catch(e){ msg(e.message,'err') }
   $('#n-save').disabled = false;
+}
+
+// ---------- Foto: shrink on the device, keep the bytes in IndexedDB until they are committed to raw/scans/ ----------
+// localStorage (outbox) is too small for photos, so the outbox op only carries the file names.
+const photoStore = {
+  mem: new Map(), db: null,
+  open(){ return this.db || (this.db = new Promise((res, rej) => { const r = indexedDB.open('sb-photos', 1); r.onupgradeneeded = () => r.result.createObjectStore('p'); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error) })) },
+  async tx(mode, fn){ const db = await this.open(); return new Promise((res, rej) => { const t = db.transaction('p', mode), q = fn(t.objectStore('p')); t.oncomplete = () => res(q.result); t.onerror = t.onabort = () => rej(t.error) }) },
+  // Returns false when the device refuses to store it; the photo then only lives as long as the app stays open.
+  async put(name, bytes){
+    this.mem.set(name, bytes);
+    try { const rec = lock.enabled() ? await crypt.encBytes(lock.key, bytes) : {data: bytes}; await this.tx('readwrite', s => s.put(rec, name)); return true } catch { return false }
+  },
+  async get(name){
+    if (this.mem.has(name)) return this.mem.get(name);
+    try { const r = await this.tx('readonly', s => s.get(name)); return !r ? null : r.iv ? await crypt.decBytes(lock.key, r) : r.data } catch { return null }
+  },
+  async del(name){ this.mem.delete(name); try { await this.tx('readwrite', s => s.delete(name)) } catch {} },
+  async names(){ try { return await this.tx('readonly', s => s.getAllKeys()) } catch { return [] } },
+  // Called before the PIN changes: re-store everything under the new key (or unencrypted without one).
+  async rekey(newKey){
+    for (const name of await this.names()) {
+      const bytes = await this.get(name); if (!bytes) continue;
+      const rec = newKey ? await crypt.encBytes(newKey, bytes) : {data: bytes};
+      try { await this.tx('readwrite', s => s.put(rec, name)) } catch {}
+    }
+  },
+  // Photos no queued op refers to any more (e.g. after a send that failed for good) are removed.
+  async prune(){ const keep = new Set(outbox.get().filter(o => o.kind === 'scan').flatMap(o => o.names)); for (const n of await this.names()) if (!keep.has(n) && !shots.some(s => s.name === n)) await this.del(n) },
+  clear(){ this.mem.clear(); try { indexedDB.deleteDatabase('sb-photos') } catch {} }
+};
+// Long edge and JPEG quality, tried in this order until the file is below 1 MB.
+const SHRINK = [[2400, .82], [2400, .7], [2000, .7], [1600, .65]];
+async function shrink(file){
+  const url = URL.createObjectURL(file), img = new Image();
+  try {
+    img.src = url; await img.decode();
+    let blob;
+    for (const [edge, q] of SHRINK) {
+      const k = Math.min(1, edge / Math.max(img.naturalWidth, img.naturalHeight));
+      const c = document.createElement('canvas'); c.width = Math.round(img.naturalWidth * k); c.height = Math.round(img.naturalHeight * k);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      blob = await new Promise(r => c.toBlob(r, 'image/jpeg', q));
+      if (blob && blob.size <= 1e6) break;
+    }
+    if (!blob) throw new Error('leer');
+    return blob;
+  } catch { throw new Error(`„${file.name}“ konnte nicht gelesen werden (kein Bildformat, das dieser Browser kennt).`) }
+  finally { URL.revokeObjectURL(url) }
+}
+let shots = [];   // photos on the screen, not yet sent: {blob, url, name?}
+async function addShots(input){
+  const files = [...input.files]; input.value = '';
+  for (const f of files) {
+    try { const blob = await shrink(f); shots.push({blob, url: URL.createObjectURL(blob)}) } catch(e){ msg(e.message, 'err') }
+  }
+  renderShots();
+}
+function renderShots(){
+  const box = $('#p-list'); box.innerHTML = '';
+  shots.forEach((s, i) => {
+    const fig = el('figure', 'shot'), img = el('img'); img.src = s.url; img.alt = `Seite ${i + 1}`;
+    const frame = el('div', 'shotframe'); frame.appendChild(img); frame.onclick = () => frame.classList.toggle('zoom');
+    const cap = el('figcaption', 'row'); cap.appendChild(el('span', 'hint', `Seite ${i + 1} · ${Math.round(s.blob.size / 1024)} KB · antippen zum Vergrößern`));
+    const rm = el('button', 'ghost', 'Entfernen'); rm.type = 'button'; rm.style.flex = '0 0 auto';
+    rm.onclick = () => { URL.revokeObjectURL(s.url); shots = shots.filter(x => x !== s); renderShots() };
+    cap.appendChild(rm); fig.append(frame, cap); box.appendChild(fig);
+  });
+  $('#p-take').textContent = shots.length ? 'Noch eine Seite' : 'Foto aufnehmen';
+  $('#p-save').textContent = shots.length > 1 ? `${shots.length} Fotos ablegen` : 'Ablegen';
+}
+async function saveScan(){
+  if (!shots.length) return msg('Noch kein Foto.', 'err');
+  const {date, time} = berlin(), sec = String(new Date().getSeconds()).padStart(2, '0');
+  const stamp = `IMG_${date.replace(/-/g, '')}_${time.replace(':', '')}${sec}`;
+  $('#p-save').disabled = true;
+  try {
+    let kept = true;
+    for (const [i, s] of shots.entries()) { s.name = `${stamp}_${i + 1}.jpg`; if (!await photoStore.put(s.name, new Uint8Array(await s.blob.arrayBuffer()))) kept = false }
+    const n = shots.length, r = await submit({kind: 'scan', names: shots.map(s => s.name), hint: $('#p-hint').value.trim().replace(/\s+/g, ' ')});
+    shots.forEach(s => URL.revokeObjectURL(s.url)); shots = []; $('#p-hint').value = ''; renderShots();
+    if (r === 'queued' && !kept) msg('Offline, und das Gerät speichert keine Fotos – sie werden nur gesendet, solange die App offen bleibt.', 'err');
+    else doneMsg(r, `${n > 1 ? n + ' Fotos' : 'Foto'} in raw/scans/ abgelegt.`);
+    tab('heute');
+  } catch(e){ msg(e.message, 'err') }
+  $('#p-save').disabled = false;
 }
 
 // ---------- Beobachtung ----------
@@ -1097,7 +1209,9 @@ const crypt = {
     return crypto.subtle.deriveKey({name: 'PBKDF2', salt, iterations: 310000, hash: 'SHA-256'}, base, {name: 'AES-GCM', length: 256}, false, ['encrypt', 'decrypt']);
   },
   async enc(key, text){ const iv = crypto.getRandomValues(new Uint8Array(12)); const ct = new Uint8Array(await crypto.subtle.encrypt({name: 'AES-GCM', iv}, key, new TextEncoder().encode(text))); return u8b64(iv) + '.' + u8b64(ct) },
-  async dec(key, s){ const [iv, ct] = s.split('.').map(b64u8); return new TextDecoder().decode(await crypto.subtle.decrypt({name: 'AES-GCM', iv}, key, ct)) }
+  async dec(key, s){ const [iv, ct] = s.split('.').map(b64u8); return new TextDecoder().decode(await crypto.subtle.decrypt({name: 'AES-GCM', iv}, key, ct)) },
+  async encBytes(key, bytes){ const iv = crypto.getRandomValues(new Uint8Array(12)); return {iv, data: new Uint8Array(await crypto.subtle.encrypt({name: 'AES-GCM', iv}, key, bytes))} },
+  async decBytes(key, r){ return new Uint8Array(await crypto.subtle.decrypt({name: 'AES-GCM', iv: r.iv}, key, r.data)) }
 };
 const SECURE_KEYS = ['token', 'ci-draft', 'outbox', 'n-draft', 't-draft'];
 const lock = {
@@ -1127,16 +1241,18 @@ const lock = {
   async setPin(pin){
     const salt = crypto.getRandomValues(new Uint8Array(16));
     const key = await crypt.derive(pin, salt);
+    await photoStore.rekey(key);
     store.set('pin', JSON.stringify({salt: u8b64(salt), check: await crypt.enc(key, 'ok')}));
     this.key = key; clearBlobCache();
     for (const k of SECURE_KEYS) if (k in this.mem) await this.persist(k);
   },
   async removePin(){
+    await photoStore.rekey(null);
     try { localStorage.removeItem('pin') } catch {}
     this.key = null; clearBlobCache();
     for (const k of SECURE_KEYS) if (k in this.mem) await this.persist(k);
   },
-  lockNow(){ if (!this.enabled()) return; this.key = null; this.mem = {}; repo = null; showLock() }
+  lockNow(){ if (!this.enabled()) return; this.key = null; this.mem = {}; photoStore.mem.clear(); repo = null; showLock() }
 };
 function clearBlobCache(){ try { Object.keys(localStorage).filter(k => k.startsWith('blob:')).forEach(k => localStorage.removeItem(k)) } catch {} }
 function showLock(){
@@ -1162,8 +1278,9 @@ async function tryUnlock(){
   btn.disabled = false;
 }
 function resetApp(){
-  if (!confirm('App zurücksetzen? Token, PIN, Entwürfe und noch nicht gesendete Einträge auf diesem Gerät werden gelöscht. Im Repo ändert sich nichts.')) return;
+  if (!confirm('App zurücksetzen? Token, PIN, Entwürfe und noch nicht gesendete Einträge und Fotos auf diesem Gerät werden gelöscht. Im Repo ändert sich nichts.')) return;
   try { localStorage.clear() } catch {}
+  photoStore.clear();
   location.reload();
 }
 function renderPinCard(){
@@ -1195,9 +1312,9 @@ function tab(name){
   flushTick();
   current = name;
   if (name !== 'newtask') newTaskFrom = 'offen';
-  const navName = name === 'note' || name === 'symptom' ? 'heute' : name === 'newtask' ? newTaskFrom : name;
+  const navName = name === 'note' || name === 'symptom' || name === 'scan' ? 'heute' : name === 'newtask' ? newTaskFrom : name;
   $$('nav button').forEach(b => b.classList.toggle('on', b.dataset.tab === navName));
-  ['heute','checkin','note','symptom','newtask','offen','kalender','verlauf','settings'].forEach(t => $('#tab-'+t).classList.toggle('hidden', t !== name));
+  ['heute','checkin','note','symptom','scan','newtask','offen','kalender','verlauf','settings'].forEach(t => $('#tab-'+t).classList.toggle('hidden', t !== name));
   if (name === 'heute') renderHeute();
   if (name === 'checkin') renderCheckin();
   if (name === 'offen') showOffen();
@@ -1205,6 +1322,7 @@ function tab(name){
   if (name === 'verlauf') showVerlauf();
   if (name === 'settings') renderPushCard().catch(() => {});
   if (name === 'newtask') openNewTask();
+  if (name === 'scan') renderShots();
   if (name === 'note') { const n = berlin(); $('#n-date').value = n.date; $('#n-time').value = n.time; $('#n-text').value = lock.get('n-draft', ''); setTimeout(() => $('#n-text').focus(), 50) }
   window.scrollTo(0, 0);
   moveGlide();
@@ -1263,6 +1381,9 @@ $('#push-on').onclick = enablePush; $('#push-off').onclick = disablePush;
 initObs();
 ['#n-text', '#s-text', '#t-text'].forEach(q => attachMic($(q)));
 $('#t-save').onclick = saveTask;
+$('#p-take').onclick = () => $('#p-cam').click(); $('#p-choose').onclick = () => $('#p-pick').click();
+$('#p-cam').onchange = e => addShots(e.target); $('#p-pick').onchange = e => addShots(e.target);
+$('#p-save').onclick = saveScan;
 $('#t-page-q').oninput = renderPageList;
 $('#t-page-q').onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); const first = $('#t-page-list .pl-item'); if (first) first.click() } };
 $('#t-text').oninput = e => lock.set('t-draft', e.target.value);
@@ -1274,7 +1395,7 @@ function startApp(){
   const want = new URLSearchParams(location.search).get('tab');
   if (want) history.replaceState(null, '', location.pathname);
   if (!started) { started = true; tab(!cfg().token ? 'settings' : ['heute','checkin','offen','kalender','verlauf'].includes(want) ? want : 'heute') } else tab(want && ['heute','checkin','offen','kalender','verlauf'].includes(want) ? want : current);
-  flushOutbox();
+  flushOutbox().then(() => photoStore.prune());
 }
 if (lock.enabled()) showLock(); else lock.loadAll().then(startApp);
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(()=>{});

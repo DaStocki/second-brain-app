@@ -211,3 +211,95 @@ test('Verlauf: neun Diagramme, Antippen zeigt den Tageswert', async ({ page }) =
   await page.mouse.click(box.x + box.width * 0.5, box.y + box.height / 2);
   await expect(page.locator('.ccap').first()).toHaveText(/\d{2}\.\d{2}\.: /);
 });
+
+// A photo larger than the limit, built in the browser so no image file has to live in the repo.
+async function bigPhoto(page, w = 4000, h = 3000) {
+  const b64 = await page.evaluate(async ([w, h]) => {
+    const c = document.createElement('canvas'); c.width = w; c.height = h;
+    const x = c.getContext('2d'); x.fillStyle = '#f4f1ea'; x.fillRect(0, 0, w, h); x.fillStyle = '#222'; x.font = '60px sans-serif';
+    for (let y = 150; y < h; y += 110) x.fillText('Sehr geehrter Herr Beispiel, hiermit bestätigen wir den Eingang Ihres Schreibens.', 150, y);
+    const blob = await new Promise(r => c.toBlob(r, 'image/jpeg', 0.95));
+    let t = ''; new Uint8Array(await blob.arrayBuffer()).forEach(v => t += String.fromCharCode(v)); return btoa(t);
+  }, [w, h]);
+  return { name: 'PXL_20261011_180000.jpg', mimeType: 'image/jpeg', buffer: Buffer.from(b64, 'base64') };
+}
+const jpegSize = buf => { for (let i = 2; i < buf.length;) { const m = buf[i + 1]; if (m >= 0xc0 && m <= 0xc2) return { h: buf.readUInt16BE(i + 5), w: buf.readUInt16BE(i + 7) }; i += 2 + buf.readUInt16BE(i + 2) } };
+const photoKeys = page => page.evaluate(() => photoStore.names());
+
+test('Foto: verkleinert, Vorschau, zwei Seiten in einem Commit nach raw/scans/', async ({ page }) => {
+  const gh = await open(page);
+  await page.click('[data-go=scan]');
+  const photo = await bigPhoto(page);
+  await page.setInputFiles('#p-cam', photo);
+  await expect(page.locator('#p-list .shot')).toHaveCount(1);
+  await expect(page.locator('#p-take')).toHaveText('Noch eine Seite');
+  await page.setInputFiles('#p-cam', photo);
+  await page.setInputFiles('#p-pick', photo);
+  await expect(page.locator('#p-list .shot')).toHaveCount(3);
+  await page.locator('#p-list .shot button').last().click();
+  await expect(page.locator('#p-save')).toHaveText('2 Fotos ablegen');
+  await page.fill('#p-hint', 'TK  Krankengeld');
+  await page.click('#p-save');
+  await expect(page.locator('#msg')).toContainText('2 Fotos in raw/scans/ abgelegt');
+  expect(gh.commits).toEqual([{ message: 'scan: 2 Fotos aus der App (TK Krankengeld)', files: ['raw/scans/IMG_20261011_200000_1.jpg', 'raw/scans/IMG_20261011_200000_2.jpg'] }]);
+  const saved = gh.binary['raw/scans/IMG_20261011_200000_1.jpg'];
+  expect(saved.subarray(0, 3).toString('hex')).toBe('ffd8ff');
+  expect(saved.length).toBeLessThan(photo.buffer.length);
+  expect(saved.length).toBeLessThanOrEqual(1e6);
+  expect(jpegSize(saved)).toEqual({ w: 2400, h: 1800 });
+  expect(await photoKeys(page)).toEqual([]);
+  await page.click('[data-go=scan]');
+  await expect(page.locator('#p-list .shot')).toHaveCount(0);
+});
+
+test('Foto offline: wartet auf dem Gerät, übersteht Neuladen, wird später gesendet', async ({ page }) => {
+  const gh = await open(page);
+  await page.click('[data-go=scan]');
+  await page.setInputFiles('#p-cam', await bigPhoto(page, 1200, 900));
+  await expect(page.locator('#p-list .shot')).toHaveCount(1);
+  gh.offline = true;
+  await page.click('#p-save');
+  await expect(page.locator('#msg')).toContainText('Offline');
+  expect(await photoKeys(page)).toEqual(['IMG_20261011_200000_1.jpg']);
+  expect(await page.evaluate(() => localStorage.getItem('outbox').length)).toBeLessThan(500);
+  await page.reload();
+  await expect(page.locator('#outbox')).toContainText('1 Eintrag wartet');
+  expect(gh.commits).toEqual([]);
+  gh.offline = false;
+  await page.evaluate(() => window.dispatchEvent(new Event('online')));
+  await expect.poll(() => gh.commits.length).toBe(1);
+  expect(jpegSize(gh.binary['raw/scans/IMG_20261011_200000_1.jpg'])).toEqual({ w: 1200, h: 900 });
+  await expect.poll(() => photoKeys(page)).toEqual([]);
+});
+
+test('Foto mit PIN: liegt verschlüsselt auf dem Gerät und wird nach dem Entsperren gesendet', async ({ page }) => {
+  const gh = await open(page);
+  await page.click('nav button[data-tab=settings]');
+  await page.fill('#pin-new', '123456'); await page.fill('#pin-new2', '123456'); await page.click('#pin-set');
+  await expect(page.locator('#msg')).toContainText('PIN gesetzt');
+  await page.click('nav button[data-tab=heute]'); await page.click('[data-go=scan]');
+  await page.setInputFiles('#p-cam', await bigPhoto(page, 1200, 900));
+  await expect(page.locator('#p-list .shot')).toHaveCount(1);
+  gh.offline = true;
+  await page.click('#p-save');
+  await expect(page.locator('#msg')).toContainText('Offline');
+  const rec = await page.evaluate(() => photoStore.tx('readonly', s => s.get('IMG_20261011_200000_1.jpg')).then(r => ({ iv: !!r.iv, head: [...r.data.slice(0, 3)] })));
+  expect(rec.iv).toBe(true);
+  expect(rec.head).not.toEqual([0xff, 0xd8, 0xff]);
+  gh.offline = false;
+  await page.reload();
+  await page.fill('#lock-pin', '123456'); await page.click('#lock-go');
+  await expect.poll(() => gh.commits.length).toBe(1);
+  expect(gh.binary['raw/scans/IMG_20261011_200000_1.jpg'].subarray(0, 3).toString('hex')).toBe('ffd8ff');
+});
+
+test('Foto: eine Datei, die kein Bild ist, wird abgelehnt', async ({ page }) => {
+  const gh = await open(page);
+  await page.click('[data-go=scan]');
+  await page.setInputFiles('#p-pick', { name: 'brief.jpg', mimeType: 'image/jpeg', buffer: Buffer.from('kein Bild') });
+  await expect(page.locator('#msg')).toContainText('konnte nicht gelesen werden');
+  await expect(page.locator('#p-list .shot')).toHaveCount(0);
+  await page.click('#p-save');
+  await expect(page.locator('#msg')).toContainText('Noch kein Foto');
+  expect(gh.commits).toEqual([]);
+});
