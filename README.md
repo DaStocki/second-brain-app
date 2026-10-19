@@ -15,7 +15,7 @@ Eine einzelne HTML-Datei (`index.html`, kein Build) als Ergänzung zu Obsidian. 
 
 ## Stand
 - [x] Heute (Startseite): Check-in-Status, Fälliges der nächsten 7 Tage, letzte Notizen, Knöpfe für Notiz und Beobachtung
-- [x] Check-in: eine Frage pro Bildschirm, Tipp auf die Zahl springt weiter, „kurz“, Zusammenfassung vor dem Speichern; Entwurf bleibt auf dem Gerät
+- [x] Check-in: eine Frage pro Bildschirm, Tipp auf die Zahl springt weiter, „kurz“, Zusammenfassung vor dem Speichern; Entwurf bleibt auf dem Gerät. Fragen wie `/checkin`: Arbeitsbelastung nur Mo–Fr, Dankbar / Stolz nur sonntags, Schlafqualität jeden Tag
 - [x] Notiz (`/journal`), Beobachtung (`/symptom`, nur Journalteil)
 - [x] Offline: Check-in, Notiz und Beobachtung landen ohne Netz in einer Warteschlange und werden automatisch gesendet
 - [x] Foto („+ Foto“ auf Heute): Brief, Beleg oder Beweisfoto mit der Kamera aufnehmen oder aus der Galerie wählen, mehrere Seiten nacheinander, Vorschau (antippen vergrößert) mit „Entfernen“. Jedes Bild wird auf dem Gerät verkleinert (lange Kante höchstens 2400 px, JPEG, Ziel unter 1 MB; dabei fallen auch die EXIF-Daten samt Standort weg) und landet als `raw/scans/IMG_JJJJMMTT_HHMMSS_<Seite>.jpg` im Vault. Das optionale Feld „Was ist das?“ steht in der Commit-Nachricht (`scan: 2 Fotos aus der App (TK Krankengeld)`). Benennen nach dem Schema und Ingest macht Mnemo (`/ingest`, `/lint`). Ohne Netz warten die Fotos in IndexedDB (mit PIN verschlüsselt) und werden später gesendet

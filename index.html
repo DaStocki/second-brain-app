@@ -313,6 +313,7 @@ const SCALES = [
   ['stimmung','Wie war deine Stimmung heute?','1 = sehr schlecht, 10 = sehr gut','Stimmung'],
   ['stress','Wie angespannt oder gestresst warst du?','1 = gar nicht, 10 = extrem','Stress'],
   ['energie','Wie viel Energie hattest du?','1 = völlig erschöpft / Fatigue, 10 = voller Energie','Energie'],
+  ['schlaf','Wie gut hast du letzte Nacht geschlafen?','1 = sehr schlecht, 10 = sehr gut','Schlaf'],
   ['beschwerden','Wie stark waren körperliche Beschwerden (MS-Symptome, Schmerz)?','1 = keine, 10 = sehr stark','Beschwerden'],
   ['fokus','Wie gut konntest du dich auf das konzentrieren, was du vorhattest?','1 = gar nicht, 10 = sehr gut','Fokus'],
   ['arbeitsbelastung','Wie belastend war die Arbeit heute?','1 = gar nicht, 10 = überfordert','Arbeit'],
@@ -328,6 +329,9 @@ const TEXTS = [
   ['dankbar','Gibt es etwas, wofür du dankbar bist oder worauf du stolz bist?','Dankbar / Stolz']
 ];
 const KURZ = new Set(['stimmung','energie','beschwerden','ereignis']);
+// Work is only asked Monday to Friday, gratitude / pride only on Sundays.
+const weekday = date => new Date(date + 'T12:00:00Z').getUTCDay();
+const asked = (key, date) => key === 'arbeitsbelastung' ? weekday(date) % 6 !== 0 : key === 'dankbar' ? weekday(date) === 0 : true;
 function applyCheckin(old, date, kurz, answers){
   let f = old == null ? newFile(date) : splitFm(old);
   if (!f.fm) f = {fm:[`datum: ${date}`,'tags: [daily]'], body:old};
@@ -336,7 +340,7 @@ function applyCheckin(old, date, kurz, answers){
   setFm(f.fm,'typ','checkin');
   if (kurz) setFm(f.fm,'variante','kurz');
   SCALES.forEach(([key]) => setFm(f.fm, key, answers[key] ?? ''));
-  const sections = TEXTS.map(([key,,title]) => `## ${title}\n${(answers[key]||'').trim()}\n`).join('\n');
+  const sections = TEXTS.filter(([key]) => asked(key, date)).map(([key,,title]) => `## ${title}\n${(answers[key]||'').trim()}\n`).join('\n');
   const block = `# Check-in ${date}\n\n${sections}\n`;
   let body = f.body.replace(/^\n+/, '');
   const n = body.search(/^## (Beobachtungen|Notizen)$/m);
@@ -397,7 +401,7 @@ const doneMsg = (r, ok) => msg(r === 'queued' ? 'Offline – lokal gespeichert, 
 let draft;
 function loadDraft(){ try { draft = JSON.parse(lock.get('ci-draft', 'null')) } catch { draft = null } if (!draft) draft = {date: berlin().date, kurz: false, step: 0, answers: {}} }
 const saveDraft = () => lock.set('ci-draft', JSON.stringify(draft));
-function steps(){ const all = [...SCALES.map(s => ({kind:'scale', key:s[0], q:s[1], h:s[2]})), ...TEXTS.map(t => ({kind:'text', key:t[0], q:t[1]}))]; return draft.kurz ? all.filter(s => KURZ.has(s.key)) : all }
+function steps(){ const all = [...SCALES.map(s => ({kind:'scale', key:s[0], q:s[1], h:s[2]})), ...TEXTS.map(t => ({kind:'text', key:t[0], q:t[1]}))]; return draft.kurz ? all.filter(s => KURZ.has(s.key)) : all.filter(s => asked(s.key, draft.date)) }
 function go(step){ draft.step = step; saveDraft(); renderCheckin() }
 function renderCheckin(){
   $('#ci-date').value = draft.date; $('#ci-kurz').checked = draft.kurz;

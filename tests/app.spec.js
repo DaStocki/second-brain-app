@@ -34,8 +34,8 @@ test('Check-in: Assistent, Entwurf übersteht Neuladen, Speichern schreibt das J
   await page.reload();
   await page.click('nav button[data-tab=checkin]');
   await expect(page.locator('#ci-step .hint').first()).toHaveText('2/13');
-  for (const v of ['3', '5', '4', '5']) { await page.click(`.scale.big button:text-is("${v}")`); await page.waitForTimeout(250) }
-  await page.click('text=– überspringen');
+  for (const v of ['3', '5', '8', '4']) { await page.click(`.scale.big button:text-is("${v}")`); await page.waitForTimeout(250) }
+  await page.click('text=– überspringen'); // focus
   for (const v of ['6', '4', '7']) { await page.click(`.scale.big button:text-is("${v}")`); await page.waitForTimeout(250) }
   await page.fill('#ci-step textarea', 'Ein Testtag');
   for (let i = 0; i < 4; i++) await page.click('#ci-step button.primary');
@@ -44,9 +44,29 @@ test('Check-in: Assistent, Entwurf übersteht Neuladen, Speichern schreibt das J
   const j = gh.files['journal/2026-10-11.md'];
   expect(j).toContain('typ: checkin');
   expect(j).toMatch(/stimmung: 6\nstress: 3\n/);
-  expect(j).toContain('arbeitsbelastung:\n');
+  expect(j).toMatch(/energie: 5\nschlaf: 8\nbeschwerden: 4\n/);
+  expect(j).toContain('fokus:\n');
+  expect(j).toContain('arbeitsbelastung:\n'); // Sunday: work is not asked
   expect(j).toContain('## Wichtigstes Ereignis\nEin Testtag');
+  expect(j).toContain('## Dankbar / Stolz');
   expect(gh.commits).toEqual([{ message: 'checkin: 2026-10-11', files: ['journal/2026-10-11.md'] }]);
+});
+
+test('Check-in an einem Werktag: Arbeit wird gefragt, Dankbar / Stolz nicht', async ({ page }) => {
+  const gh = await open(page, { storage: { 'ci-draft': JSON.stringify({ date: '2026-10-12', kurz: false, step: 0, answers: {} }) } });
+  await page.click('nav button[data-tab=checkin]');
+  await expect(page.locator('#ci-step .hint').first()).toHaveText('1/13');
+  for (let i = 0; i < 10; i++) { await page.click(`.scale.big button:text-is("${i + 1}")`); await page.waitForTimeout(250) }
+  for (let i = 0; i < 3; i++) await page.click('#ci-step button.primary');
+  await expect(page.locator('#ci-step .sumrow')).toHaveCount(13);
+  await expect(page.locator('#ci-step .sumrow', { hasText: 'Dankbar' })).toHaveCount(0);
+  await page.click('#ci-step button.primary:text("Speichern")');
+  await expect(page.locator('#msg')).toContainText('Gespeichert');
+  const j = gh.files['journal/2026-10-12.md'];
+  expect(j).toContain('arbeitsbelastung: 7\n');
+  expect(j).toContain('schlaf: 4\n');
+  expect(j).toContain('## Gutgetan');
+  expect(j).not.toContain('Dankbar');
 });
 
 test('Notiz offline: landet in der Warteschlange und wird später gesendet', async ({ page }) => {
@@ -203,10 +223,10 @@ test('Design und Schriftgröße bleiben erhalten, kein seitliches Scrollen', asy
   }
 });
 
-test('Verlauf: neun Diagramme, Antippen zeigt den Tageswert', async ({ page }) => {
+test('Verlauf: zehn Diagramme, Antippen zeigt den Tageswert', async ({ page }) => {
   await open(page);
   await page.click('nav button[data-tab=verlauf]');
-  await expect(page.locator('.chart')).toHaveCount(9);
+  await expect(page.locator('.chart')).toHaveCount(10);
   const box = await page.locator('.chart svg').first().boundingBox();
   await page.mouse.click(box.x + box.width * 0.5, box.y + box.height / 2);
   await expect(page.locator('.ccap').first()).toHaveText(/\d{2}\.\d{2}\.: /);
