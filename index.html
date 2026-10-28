@@ -60,6 +60,7 @@
 </section>
 
 <section id="tab-newtask" class="hidden">
+  <button type="button" class="ghost backbtn" data-back>← Zurück</button>
   <h1>Neue Aufgabe</h1>
   <div class="card">
     <label class="q" for="t-text">Was ist zu tun?</label>
@@ -76,6 +77,7 @@
 </section>
 
 <section id="tab-note" class="hidden">
+  <button type="button" class="ghost backbtn" data-back>← Zurück</button>
   <h1>Notiz ins Journal</h1>
   <div class="card row"><input type="date" id="n-date" aria-label="Datum"><input type="text" id="n-time" placeholder="HH:MM" aria-label="Uhrzeit"></div>
   <div class="card"><textarea id="n-text" rows="5" placeholder="Frei schreiben, ohne Schema"></textarea></div>
@@ -83,6 +85,7 @@
 </section>
 
 <section id="tab-scan" class="hidden">
+  <button type="button" class="ghost backbtn" data-back>← Zurück</button>
   <h1>Foto ablegen</h1>
   <div class="card">
     <div class="hint">Brief, Beleg oder Beweisfoto: ganze Seite, flach, gutes Licht, ein Foto pro Seite. Landet verkleinert in <code>raw/scans/</code>; Mnemo benennt und verarbeitet es beim nächsten <code>/ingest</code>.</div>
@@ -97,6 +100,7 @@
 </section>
 
 <section id="tab-symptom" class="hidden">
+  <button type="button" class="ghost backbtn" data-back>← Zurück</button>
   <h1>Beobachtung</h1>
   <div class="card">
     <div class="hint">Art</div>
@@ -457,7 +461,7 @@ async function saveCheckin(btn){
   try {
     const r = await submit({kind:'checkin', date: draft.date, kurz: draft.kurz, answers});
     lock.set('ci-draft', 'null'); loadDraft(); renderCheckin();
-    doneMsg(r, 'Gespeichert. Gute Nacht!'); tab('heute');
+    doneMsg(r, 'Gespeichert. Gute Nacht!'); tab('heute', 'replace');
   } catch(e){ msg(e.message, 'err'); btn.disabled = false }
 }
 
@@ -466,7 +470,7 @@ async function saveNote(){
   const date = $('#n-date').value, time = $('#n-time').value.trim() || berlin().time, text = $('#n-text').value;
   if (!text.trim()) return msg('Leere Notiz.','err');
   $('#n-save').disabled = true;
-  try { const r = await submit({kind:'note', date, time, text}); $('#n-text').value=''; lock.set('n-draft',''); doneMsg(r, 'Gespeichert.'); tab('heute') }
+  try { const r = await submit({kind:'note', date, time, text}); $('#n-text').value=''; lock.set('n-draft',''); doneMsg(r, 'Gespeichert.'); leave('heute') }
   catch(e){ msg(e.message,'err') }
   $('#n-save').disabled = false;
 }
@@ -552,7 +556,7 @@ async function saveScan(){
     shots.forEach(s => URL.revokeObjectURL(s.url)); shots = []; $('#p-hint').value = ''; renderShots();
     if (r === 'queued' && !kept) msg('Offline, und das Gerät speichert keine Fotos – sie werden nur gesendet, solange die App offen bleibt.', 'err');
     else doneMsg(r, `${n > 1 ? n + ' Fotos' : 'Foto'} in raw/scans/ abgelegt.`);
-    tab('heute');
+    leave('heute');
   } catch(e){ msg(e.message, 'err') }
   $('#p-save').disabled = false;
 }
@@ -577,7 +581,7 @@ async function saveObs(){
   if (obs.stark) line += `; Stärke ${obs.stark}/10`;
   if (half) line += `; half: ${half}`;
   $('#s-save').disabled = true;
-  try { const r = await submit({kind:'obs', date, line}); $('#s-text').value=$('#s-kw').value=$('#s-half').value=''; doneMsg(r, 'Gespeichert (nur Journal).'); tab('heute') }
+  try { const r = await submit({kind:'obs', date, line}); $('#s-text').value=$('#s-kw').value=$('#s-half').value=''; doneMsg(r, 'Gespeichert (nur Journal).'); leave('heute') }
   catch(e){ msg(e.message,'err') }
   $('#s-save').disabled = false;
 }
@@ -1199,7 +1203,7 @@ async function saveTask(){
   try {
     const r = await submit({kind: 'task', path, text, due: due || null, today: berlin().date});
     store.set('t-page', path); store.set('t-pages-recent', JSON.stringify([path, ...recentPages().filter(p => p !== path)].slice(0, 5))); lock.set('t-draft', ''); $('#t-text').value = '';
-    doneMsg(r, 'Aufgabe angelegt.'); tab(newTaskFrom);
+    doneMsg(r, 'Aufgabe angelegt.'); leave(newTaskFrom);
   } catch(e){ msg(e.message, 'err') }
   $('#t-save').disabled = false;
 }
@@ -1311,10 +1315,15 @@ async function saveSettings(){
   try { const r = await gh(''); msg(`Verbunden mit ${r.full_name}${r.private?' (privat)':''}.`,'ok'); flushOutbox() } catch(e){ msg('Test fehlgeschlagen: '+e.message,'err') }
 }
 let current = 'heute';
-function tab(name){
+// Every tab change is a browser history entry, so the phone's back gesture returns to the previous screen
+// instead of closing the app. how: 'push' (user navigates), 'replace' (start, after saving), 'pop' (back gesture).
+function tab(name, how = 'push'){
   if (activeMic) activeMic.stop();
   flushTick();
+  const prev = current;
   current = name;
+  if (how === 'push' && !(history.state && history.state.tab === name)) history.pushState({tab: name, back: prev, from: newTaskFrom}, '');
+  else if (how === 'replace') history.replaceState({tab: name, back: history.state && history.state.back, from: newTaskFrom}, '');
   if (name !== 'newtask') newTaskFrom = 'offen';
   const navName = name === 'note' || name === 'symptom' || name === 'scan' ? 'heute' : name === 'newtask' ? newTaskFrom : name;
   $$('nav button').forEach(b => b.classList.toggle('on', b.dataset.tab === navName));
@@ -1331,6 +1340,20 @@ function tab(name){
   window.scrollTo(0, 0);
   moveGlide();
 }
+// "← Zurück": to the previous screen; without an in-app history entry to fallback.
+function goBack(fallback){
+  if (history.state && history.state.back) history.back(); else tab(fallback, 'replace');
+}
+// After saving: show target, and drop the finished form from the history so back does not reopen it.
+function leave(target){
+  if (history.state && history.state.back === target) history.back(); else tab(target, 'replace');
+}
+window.addEventListener('popstate', e => {
+  if (lock.locked() || !started) return;
+  const st = e.state || {tab: 'heute'};
+  if (st.tab === 'newtask' && st.from) newTaskFrom = st.from;
+  tab(st.tab, 'pop');
+});
 function moveGlide(){
   const b = $('nav button.on'), g = $('nav .glide');
   if (!b || !g || !b.offsetWidth) return;
@@ -1360,6 +1383,7 @@ setTheme(document.documentElement.dataset.theme);
 if (document.fonts) document.fonts.ready.then(moveGlide);
 $$('nav button').forEach(b => b.onclick = () => tab(b.dataset.tab));
 $$('[data-go]').forEach(b => b.onclick = () => tab(b.dataset.go));
+$$('[data-back]').forEach(b => b.onclick = () => goBack(current === 'newtask' ? newTaskFrom : 'heute'));
 $('#ci-date').onchange = e => { draft.date = e.target.value; saveDraft(); renderCheckin() };
 $('#ci-kurz').onchange = e => { draft.kurz = e.target.checked; draft.step = 0; saveDraft(); renderCheckin() };
 $('#ci-reset').onclick = () => { if (confirm('Entwurf verwerfen?')) { lock.set('ci-draft', 'null'); loadDraft(); renderCheckin() } };
@@ -1398,7 +1422,7 @@ function startApp(){
   renderPinCard();
   const want = new URLSearchParams(location.search).get('tab');
   if (want) history.replaceState(null, '', location.pathname);
-  if (!started) { started = true; tab(!cfg().token ? 'settings' : ['heute','checkin','offen','kalender','verlauf'].includes(want) ? want : 'heute') } else tab(want && ['heute','checkin','offen','kalender','verlauf'].includes(want) ? want : current);
+  if (!started) { started = true; tab(!cfg().token ? 'settings' : ['heute','checkin','offen','kalender','verlauf'].includes(want) ? want : 'heute', 'replace') } else tab(want && ['heute','checkin','offen','kalender','verlauf'].includes(want) ? want : current, 'replace');
   flushOutbox().then(() => photoStore.prune());
 }
 if (lock.enabled()) showLock(); else lock.loadAll().then(startApp);

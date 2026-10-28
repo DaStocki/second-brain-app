@@ -323,3 +323,44 @@ test('Foto: eine Datei, die kein Bild ist, wird abgelehnt', async ({ page }) => 
   await expect(page.locator('#msg')).toContainText('Noch kein Foto');
   expect(gh.commits).toEqual([]);
 });
+
+test('Zurück: Wischgeste und Zurück-Knopf führen zur vorherigen Ansicht', async ({ page }) => {
+  await open(page);
+  await page.click('nav button[data-tab=offen]');
+  await page.click('nav button[data-tab=kalender]');
+  await expect(page.locator('#tab-kalender')).toBeVisible();
+  await page.goBack(); // system back gesture
+  await expect(page.locator('#tab-offen')).toBeVisible();
+  await expect(page.locator('nav button.on')).toHaveText('Offen');
+  await page.goBack();
+  await expect(page.locator('#tab-heute')).toBeVisible();
+  await page.goForward();
+  await expect(page.locator('#tab-offen')).toBeVisible();
+  await page.goBack();
+  await page.click('[data-go=note]');
+  await expect(page.locator('#tab-note')).toBeVisible();
+  await page.click('#tab-note [data-back]'); // visible button
+  await expect(page.locator('#tab-heute')).toBeVisible();
+});
+
+test('Zurück: nach dem Speichern führt Zurück nicht ins ausgefüllte Formular', async ({ page }) => {
+  const gh = await open(page);
+  await page.click('[data-go=note]');
+  await page.fill('#n-text', 'Notiz mit Zurück');
+  await page.click('#n-save');
+  await expect(page.locator('#tab-heute')).toBeVisible();
+  await expect.poll(() => gh.files['journal/2026-10-11.md'] || '').toContain('Notiz mit Zurück');
+  expect(await page.evaluate(() => history.state && history.state.tab)).toBe('heute');
+  expect(await page.evaluate(() => history.state && history.state.back)).toBeFalsy(); // nothing in-app to go back to
+});
+
+test('Zurück: neue Aufgabe aus dem Kalender führt zurück in den Kalender', async ({ page }) => {
+  await open(page);
+  await page.click('nav button[data-tab=kalender]');
+  await page.click('.calday[data-date="2026-10-20"]');
+  await page.click('#k-newtask');
+  await expect(page.locator('#tab-newtask')).toBeVisible();
+  await page.goBack();
+  await expect(page.locator('#tab-kalender')).toBeVisible();
+  await expect(page.locator('nav button.on')).toHaveText('Kalender');
+});

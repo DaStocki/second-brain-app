@@ -76,7 +76,7 @@ for (const theme of THEMES) {
     });
     test('notiz-beobachtung-aufgabe', async ({ page }) => {
       await start(page, theme);
-      await page.click('[data-go=note]'); await page.fill('#n-text', 'Eine Notiz'); await page.fill('#n-time', '20:00'); await settle(page);
+      await page.click('[data-go=note]'); await expect(page.locator('#n-text')).toBeFocused(); await page.fill('#n-text', 'Eine Notiz'); await page.fill('#n-time', '20:00'); await settle(page);
       await expect(page).toHaveScreenshot(`${theme}-notiz.png`, shot);
       await page.click('nav button[data-tab=heute]'); await page.click('[data-go=symptom]');
       await page.locator('#s-areas .pill').first().click(); await page.locator('#s-scale button').nth(4).click(); await settle(page);
