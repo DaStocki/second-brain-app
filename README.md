@@ -15,7 +15,7 @@ Eine einzelne HTML-Datei (`index.html`, kein Build) als Ergänzung zu Obsidian. 
 
 ## Stand
 - [x] Heute (Startseite): Check-in-Status, Fälliges der nächsten 7 Tage, letzte Notizen, Knöpfe für Notiz und Beobachtung
-- [x] Check-in: eine Frage pro Bildschirm, Tipp auf die Zahl springt weiter, „kurz“, Zusammenfassung vor dem Speichern; Entwurf bleibt auf dem Gerät. Fragen wie `/checkin`: Arbeitsbelastung nur Mo–Fr, Dankbar / Stolz nur sonntags, Schlafqualität jeden Tag
+- [x] Check-in: eine Frage pro Bildschirm, Tipp auf die Zahl springt weiter, „kurz“, Zusammenfassung vor dem Speichern; Entwurf bleibt auf dem Gerät. Fragen wie `/checkin`: Arbeitsbelastung nur Mo–Fr, Dankbar / Stolz nur sonntags, Schlafqualität jeden Tag. Nach dem Speichern zeigt ein letzter Schritt „Auffällig heute“: bis zu drei Werte, die um 3 oder mehr vom Schnitt der letzten 7 Check-ins abweichen oder einen neuen Höchst-/Tiefstwert setzen (ab 7 früheren Werten); nur beschreibend
 - [x] Notiz (`/journal`), Beobachtung (`/symptom`, nur Journalteil)
 - [x] Zurück: Wischgeste bzw. Zurück-Taste von Android und Browser führen zur vorherigen Ansicht statt die App zu schließen (jeder Tabwechsel ist ein Eintrag im Browserverlauf); Notiz, Beobachtung, Foto und neue Aufgabe haben zusätzlich einen Knopf „← Zurück“. Nach dem Speichern führt Zurück nicht ins ausgefüllte Formular
 - [x] Offline: Check-in, Notiz und Beobachtung landen ohne Netz in einer Warteschlange und werden automatisch gesendet

@@ -40,6 +40,10 @@ test('Check-in: Assistent, Entwurf übersteht Neuladen, Speichern schreibt das J
   await page.fill('#ci-step textarea', 'Ein Testtag');
   for (let i = 0; i < 4; i++) await page.click('#ci-step button.primary');
   await page.click('#ci-step button.primary:text("Speichern")');
+  // remark step: what stands out compared with earlier check-ins (stress 7 days before: 7 9 8 4 7 8 5)
+  await expect(page.locator('#ci-step .bigq')).toHaveText('Gespeichert');
+  await expect(page.locator('#ci-step .remarks li')).toContainText(['Stress 3: −3,9 zum Schnitt der letzten 7 Tage (6,9)', 'Stress 3: niedrigster Wert bisher']);
+  await page.click('#ci-done');
   await expect(page.locator('#h-status .status')).toHaveText(/gespeichert/);
   const j = gh.files['journal/2026-10-11.md'];
   expect(j).toContain('typ: checkin');
@@ -62,6 +66,7 @@ test('Check-in an einem Werktag: Arbeit wird gefragt, Dankbar / Stolz nicht', as
   await expect(page.locator('#ci-step .sumrow', { hasText: 'Dankbar' })).toHaveCount(0);
   await page.click('#ci-step button.primary:text("Speichern")');
   await expect(page.locator('#msg')).toContainText('Gespeichert');
+  await expect(page.locator('#ci-step .remarks li').first()).toBeVisible();
   const j = gh.files['journal/2026-10-12.md'];
   expect(j).toContain('arbeitsbelastung: 7\n');
   expect(j).toContain('schlaf: 4\n');
@@ -363,4 +368,13 @@ test('Zurück: neue Aufgabe aus dem Kalender führt zurück in den Kalender', as
   await page.goBack();
   await expect(page.locator('#tab-kalender')).toBeVisible();
   await expect(page.locator('nav button.on')).toHaveText('Kalender');
+});
+
+test('Check-in: ohne Auffälligkeiten sagt die Bemerkung das auch', async ({ page }) => {
+  await open(page, { storage: { 'ci-draft': JSON.stringify({ date: '2026-10-11', kurz: true, step: 0, answers: {} }) } });
+  await page.click('nav button[data-tab=checkin]');
+  for (const v of ['6', '5', '5']) { await page.click(`.scale.big button:text-is("${v}")`); await page.waitForTimeout(250) }
+  await page.click('#ci-step button.primary'); // free text left empty
+  await page.click('#ci-step button.primary:text("Speichern")');
+  await expect(page.locator('#ci-step .remarks li')).toHaveText(['Nichts Auffälliges – alle Werte liegen nahe am Schnitt der letzten 7 Tage.']);
 });

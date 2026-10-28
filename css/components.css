@@ -89,6 +89,8 @@ input[type=checkbox]{accent-color:var(--check-accent);width:16px;height:16px;ver
 /* check-in wizard */
 .prog{height:var(--prog-h);margin:8px 0 18px;border-radius:999px;background:var(--prog-bg);overflow:hidden}
 .prog>div{height:100%;border-radius:inherit;background:var(--prog-fill);box-shadow:var(--prog-glow);transition:width .45s var(--ease)}
+.remarks{margin:10px 0 18px;padding-left:20px;line-height:1.5}
+.remarks li{margin:6px 0}
 .sumrow{display:flex;justify-content:space-between;gap:12px;padding:12px 2px;border-bottom:var(--sumrow-line);cursor:pointer;transition:background .2s}
 .sumrow:hover{background:rgba(123,161,244,.06)}
 .sumrow span:last-child{text-align:right;overflow-wrap:anywhere;font:var(--sumrow-value-font);color:var(--sumrow-value-color);-webkit-font-smoothing:var(--display-smoothing)}

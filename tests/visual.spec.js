@@ -74,6 +74,13 @@ for (const theme of THEMES) {
       await page.click('nav button[data-tab=settings]'); await settle(page);
       await expect(page).toHaveScreenshot(`${theme}-settings.png`, { ...shot, fullPage: true });
     });
+    test('checkin-bemerkung', async ({ page }) => {
+      const answers = { stimmung: 6, stress: 3, energie: 5, schlaf: 8, beschwerden: 4, soziale_batterie: 6, reizueberflutung: 4, verbundenheit: 7 };
+      await start(page, theme, { 'ci-draft': JSON.stringify({ date: '2026-10-11', kurz: false, step: 13, answers }) });
+      await page.click('nav button[data-tab=checkin]'); await page.click('#ci-step button.primary:text("Speichern")');
+      await expect(page.locator('#ci-step .remarks li').first()).toBeVisible(); await settle(page);
+      await expect(page).toHaveScreenshot(`${theme}-checkin-bemerkung.png`, shot);
+    });
     test('notiz-beobachtung-aufgabe', async ({ page }) => {
       await start(page, theme);
       await page.click('[data-go=note]'); await expect(page.locator('#n-text')).toBeFocused(); await page.fill('#n-text', 'Eine Notiz'); await page.fill('#n-time', '20:00'); await settle(page);

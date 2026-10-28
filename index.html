@@ -458,11 +458,51 @@ async function saveCheckin(btn){
   const answers = {}; steps().forEach(s => { const v = draft.answers[s.key]; if (v != null && v !== '') answers[s.key] = v });
   if (!Object.keys(answers).length) return msg('Nichts ausgefüllt.', 'err');
   btn.disabled = true;
+  const date = draft.date;
+  let past = null; // earlier check-ins, read before saving (the save drops the cached repo)
+  try { past = journalFiles(repo || await loadRepo()) } catch {}
   try {
-    const r = await submit({kind:'checkin', date: draft.date, kurz: draft.kurz, answers});
+    const r = await submit({kind:'checkin', date, kurz: draft.kurz, answers});
     lock.set('ci-draft', 'null'); loadDraft(); renderCheckin();
-    doneMsg(r, 'Gespeichert. Gute Nacht!'); tab('heute', 'replace');
+    doneMsg(r, 'Gespeichert. Gute Nacht!');
+    renderRemarks(past ? checkinRemarks(past, date, answers) : null);
   } catch(e){ msg(e.message, 'err'); btn.disabled = false }
+}
+const fmt1 = x => x.toFixed(1).replace('.', ',');
+// What stands out today, compared with earlier check-ins: a deviation of 3 or more from the average of the
+// previous 7 values, or a new highest/lowest value (from 7 earlier values on). Describes only, never judges.
+function checkinRemarks(js, date, answers){
+  const rows = js.filter(j => j.date < date).map(j => fmValues(j.text)).filter(v => v.typ === 'checkin');
+  const out = [];
+  SCALES.forEach(([key,,, label]) => {
+    const v = answers[key]; if (v == null) return;
+    const prev = rows.map(r => r[key]).filter(x => x !== '' && x != null && !isNaN(+x)).map(Number);
+    const last7 = prev.slice(-7);
+    if (last7.length >= 3) {
+      const avg = last7.reduce((a, b) => a + b, 0) / last7.length, d = v - avg;
+      if (Math.abs(d) >= 3) out.push({w: 3 + Math.abs(d), t: `${label} ${v}: ${d > 0 ? '+' : '−'}${fmt1(Math.abs(d))} zum Schnitt der letzten 7 Tage (${fmt1(avg)})`});
+    }
+    if (prev.length >= 7) {
+      const mx = Math.max(...prev), mn = Math.min(...prev);
+      if (v > mx) out.push({w: 3, t: `${label} ${v}: höchster Wert bisher`});
+      else if (v < mn) out.push({w: 3, t: `${label} ${v}: niedrigster Wert bisher`});
+      else if (v === mx && mx !== mn) out.push({w: 1, t: `${label} ${v}: gleich dem bisher höchsten Wert`});
+      else if (v === mn && mx !== mn) out.push({w: 1, t: `${label} ${v}: gleich dem bisher niedrigsten Wert`});
+    }
+  });
+  return out.sort((a, b) => b.w - a.w).slice(0, 3).map(o => o.t);
+}
+function renderRemarks(list){
+  const box = $('#ci-step'); box.innerHTML = '';
+  box.appendChild(el('div', 'bigq', 'Gespeichert'));
+  box.appendChild(el('div', 'hint', 'Auffällig heute'));
+  const ul = el('ul', 'remarks');
+  if (list == null) ul.appendChild(el('li', 'hint', 'Ohne Verbindung kein Vergleich mit früheren Tagen.'));
+  else if (!list.length) ul.appendChild(el('li', null, 'Nichts Auffälliges – alle Werte liegen nahe am Schnitt der letzten 7 Tage.'));
+  else list.forEach(t => ul.appendChild(el('li', null, t)));
+  box.appendChild(ul);
+  const done = el('button', 'primary', 'Fertig'); done.type = 'button'; done.id = 'ci-done'; done.onclick = () => tab('heute', 'replace'); box.appendChild(done);
+  setTimeout(() => done.focus(), 50);
 }
 
 // ---------- Notiz ----------
