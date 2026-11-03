@@ -1022,6 +1022,27 @@ function renderVerlauf(js){
   box.appendChild(el('div', 'hint', `${rows.filter(r => r.date >= start).length} Check-ins · Punkte = Tageswert, Linie = Schnitt der letzten 7 Tage`));
   SCALES.forEach(([key,,, label]) => box.appendChild(metricChart(rows, key, label, start, end)));
 }
+// Smooth curve through the points (monotone cubic, Fritsch–Carlson): no overshoot above 10 or below 1,
+// flat stretches stay flat, every point is still hit exactly.
+function smoothPath(p){
+  const n = p.length, f = v => v.toFixed(1);
+  if (n < 3) return p.map(([px, py], i) => `${i ? 'L' : 'M'}${f(px)},${f(py)}`).join('');
+  const d = [], m = [];
+  for (let i = 0; i < n - 1; i++) d.push((p[i + 1][1] - p[i][1]) / (p[i + 1][0] - p[i][0]));
+  m[0] = d[0]; m[n - 1] = d[n - 2];
+  for (let i = 1; i < n - 1; i++) m[i] = d[i - 1] * d[i] <= 0 ? 0 : (d[i - 1] + d[i]) / 2;
+  for (let i = 0; i < n - 1; i++) {
+    if (d[i] === 0) { m[i] = m[i + 1] = 0; continue }
+    const a = m[i] / d[i], b = m[i + 1] / d[i], h = a * a + b * b;
+    if (h > 9) { const t = 3 / Math.sqrt(h); m[i] = t * a * d[i]; m[i + 1] = t * b * d[i] }
+  }
+  let out = `M${f(p[0][0])},${f(p[0][1])}`;
+  for (let i = 0; i < n - 1; i++) {
+    const dx = (p[i + 1][0] - p[i][0]) / 3;
+    out += `C${f(p[i][0] + dx)},${f(p[i][1] + m[i] * dx)} ${f(p[i + 1][0] - dx)},${f(p[i + 1][1] - m[i + 1] * dx)} ${f(p[i + 1][0])},${f(p[i + 1][1])}`;
+  }
+  return out;
+}
 function metricChart(rows, key, label, start, end){
   const pts = rows.map(r => ({date: r.date, y: r.v[key] === '' || r.v[key] == null ? null : +r.v[key]})).filter(p => p.y != null && !isNaN(p.y));
   const avgAt = d => { const w = pts.filter(p => p.date <= d && p.date > addDays(d, -7)); return w.length ? w.reduce((s, p) => s + p.y, 0) / w.length : null };
@@ -1041,9 +1062,10 @@ function metricChart(rows, key, label, start, end){
   [1, 5, 10].forEach(v => { mk('line', {x1: L, x2: W - R, y1: y(v), y2: y(v), class: 'grid'}); mk('text', {x: L - 6, y: y(v) + 4, class: 'axis', 'text-anchor': 'end'}).textContent = v });
   const idx = Object.fromEntries(days.map((d, i) => [d, i]));
   [0, n - 1].forEach(i => mk('text', {x: x(i), y: H - 4, class: 'axis', 'text-anchor': i ? 'end' : 'start'}).textContent = fmtDate(days[i]).slice(0, 6));
-  let path = '', pen = false;
-  days.forEach((d, i) => { const a = pts.some(p => p.date <= d && p.date > addDays(d, -7)) ? avgAt(d) : null; if (a == null) { pen = false; return } path += `${pen ? 'L' : 'M'}${x(i).toFixed(1)},${y(a).toFixed(1)}`; pen = true });
-  if (path) mk('path', {d: path, class: 'avg'});
+  const runs = []; let run = null;
+  days.forEach((d, i) => { const a = pts.some(p => p.date <= d && p.date > addDays(d, -7)) ? avgAt(d) : null; if (a == null) { run = null; return } if (!run) runs.push(run = []); run.push([x(i), y(a)]) });
+  const path = runs.map(smoothPath).join('');
+  if (path) mk('path', {d: path, class: 'avg', pathLength: 1});
   shown.forEach(p => mk('circle', {cx: x(idx[p.date]), cy: y(p.y), r: 4, class: 'dot'}));
   const cross = mk('line', {x1: 0, x2: 0, y1: T, y2: H - B, class: 'cross hidden'});
   const cap = el('div', 'hint ccap', 'Tippe in das Diagramm für einzelne Tage.');
