@@ -143,7 +143,7 @@ button.due.add:hover{color:var(--accent)}
 .chart .grid{stroke:var(--line);stroke-width:1}
 .chart .axis{fill:var(--axis-color);font:var(--axis-font);-webkit-font-smoothing:var(--display-smoothing)}
 .chart .avg{fill:none;stroke:var(--chart-line);stroke-width:2;stroke-linejoin:round;stroke-linecap:round;filter:var(--chart-line-glow)}
-.chart .avg{stroke-dasharray:1;stroke-dashoffset:0;animation:chart-draw .9s var(--ease) both}
+.chart .avg{stroke-dasharray:1;stroke-dashoffset:0;animation:chart-draw .6s var(--ease) both}
 @keyframes chart-draw{from{stroke-dashoffset:1}}
 @media (prefers-reduced-motion:reduce){.chart .avg{animation:none}}
 .chart .dot{fill:var(--chart-dot);fill-opacity:var(--chart-dot-opacity);stroke:var(--chart-dot-ring);stroke-width:2}
