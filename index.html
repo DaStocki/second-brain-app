@@ -128,7 +128,7 @@
 
 <section id="tab-kalender" class="hidden">
   <div class="calhead"><button class="ghost calnav" id="k-prev" aria-label="Voriger Monat">‹</button><h1 id="k-month">Kalender</h1><button class="ghost calnav" id="k-next" aria-label="Nächster Monat">›</button></div>
-  <div class="calweek" aria-hidden="true"><span>Mo</span><span>Di</span><span>Mi</span><span>Do</span><span>Fr</span><span>Sa</span><span>So</span></div>
+  <div class="calweek" aria-hidden="true"><span>Mo</span><span>Di</span><span>Mi</span><span>Do</span><span>Fr</span><span class="we">Sa</span><span class="we">So</span></div>
   <div id="k-grid" class="calgrid"></div>
   <div class="hint callegend"><span><i class="mk task"></i>Aufgabe</span><span><i class="mk note"></i>Notiz</span><span><i class="mood mood-low"></i><i class="mood mood-mid"></i><i class="mood mood-high"></i>Stimmung</span></div>
   <div id="k-day"></div>
@@ -664,6 +664,7 @@ function fmValues(text){ const m = text.match(/^---\n([\s\S]*?)\n---/); const o 
 const addDays = (iso, n) => { const d = new Date(iso + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10) };
 const WD = ['So','Mo','Di','Mi','Do','Fr','Sa'];
 const wd = iso => WD[new Date(iso + 'T00:00:00Z').getUTCDay()];
+const isWeekend = iso => new Date(iso + 'T00:00:00Z').getUTCDay() % 6 === 0;
 function fmtDate(d){ return `${d.slice(8,10)}.${d.slice(5,7)}.${d.slice(0,4)}` }
 function el(tag, cls, text){ const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e }
 const obsidianUrl = path => `obsidian://open?vault=${encodeURIComponent(store.get('vault', 'second-brain'))}&file=${encodeURIComponent(path.replace(/\.md$/, ''))}`;
@@ -960,7 +961,7 @@ function renderKalender(r){
   const weeks = Math.ceil((lead + new Date(Date.UTC(y, m, 0)).getUTCDate()) / 7);
   for (let i = 0; i < weeks * 7; i++) {
     const d = addDays(start, i), info = days[d];
-    const b = el('button', 'calday' + (d.slice(0, 7) !== calMonth ? ' out' : '') + (d === today ? ' today' : '') + (d === calDay ? ' on' : ''));
+    const b = el('button', 'calday' + (isWeekend(d) ? ' we' : '') + (d.slice(0, 7) !== calMonth ? ' out' : '') + (d === today ? ' today' : '') + (d === calDay ? ' on' : ''));
     b.type = 'button'; b.dataset.date = d;
     b.setAttribute('aria-label', `${wd(d)} ${fmtDate(d)}${info && info.tasks.length ? `, ${info.tasks.length} Aufgabe${info.tasks.length > 1 ? 'n' : ''}` : ''}`);
     b.setAttribute('aria-pressed', String(d === calDay));
@@ -1062,6 +1063,9 @@ function metricChart(rows, key, label, start, end){
   const NS = 'http://www.w3.org/2000/svg', svg = document.createElementNS(NS, 'svg');
   svg.setAttribute('viewBox', `0 0 ${W} ${H}`); svg.setAttribute('role', 'img'); svg.setAttribute('aria-label', `${label}, Verlauf`);
   const mk = (tag, attrs) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); svg.appendChild(e); return e };
+  // Weekends as light bands behind the grid, one band per Saturday/Sunday pair.
+  const step = n > 1 ? (W - L - R) / (n - 1) : W - L - R;
+  days.forEach((d, i) => { if (!isWeekend(d) || (i > 0 && isWeekend(days[i - 1]))) return; let j = i; while (j + 1 < n && isWeekend(days[j + 1])) j++; const x0 = Math.max(L, x(i) - step / 2), x1 = Math.min(W - R, x(j) + step / 2); mk('rect', {x: x0.toFixed(1), y: T, width: Math.max(0, x1 - x0).toFixed(1), height: H - T - B, class: 'we'}) });
   [1, 5, 10].forEach(v => { mk('line', {x1: L, x2: W - R, y1: y(v), y2: y(v), class: 'grid'}); mk('text', {x: L - 6, y: y(v) + 4, class: 'axis', 'text-anchor': 'end'}).textContent = v });
   const idx = Object.fromEntries(days.map((d, i) => [d, i]));
   [0, n - 1].forEach(i => mk('text', {x: x(i), y: H - 4, class: 'axis', 'text-anchor': i ? 'end' : 'start'}).textContent = fmtDate(days[i]).slice(0, 6));

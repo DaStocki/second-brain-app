@@ -25,6 +25,9 @@ test('Kalender: Monat, Markierungen, Tagesansicht, Monatswechsel', async ({ page
   await expect(day(page, '2026-10-14').locator('.mk.task')).toHaveCount(1);
   await expect(day(page, '2026-10-09').locator('.mood')).toHaveClass(/mood-low/); // Stimmung 3
   await expect(day(page, '2026-10-09').locator('.mk.note')).toHaveCount(1);
+  await expect(page.locator('.calday.we')).toHaveCount(10); // Sa/So of five weeks
+  await expect(day(page, '2026-10-10')).toHaveClass(/\bwe\b/);
+  await expect(day(page, '2026-10-09')).not.toHaveClass(/\bwe\b/);
 
   await day(page, '2026-10-14').click();
   await expect(page.locator('#k-day .task')).toHaveCount(1);

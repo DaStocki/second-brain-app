@@ -140,6 +140,7 @@ button.due.add:hover{color:var(--accent)}
 
 /* charts */
 .chart svg{width:100%;height:auto;display:block;touch-action:pan-y;margin-top:8px;background:var(--chart-bg);border:var(--chart-border);border-radius:var(--chart-radius);box-shadow:var(--chart-shadow)}
+.chart .we{fill:var(--weekend-bg)}
 .chart .grid{stroke:var(--line);stroke-width:1}
 .chart .axis{fill:var(--axis-color);font:var(--axis-font);-webkit-font-smoothing:var(--display-smoothing)}
 .chart .avg{fill:none;stroke:var(--chart-line);stroke-width:2;stroke-linejoin:round;stroke-linecap:round;filter:var(--chart-line-glow)}
@@ -247,6 +248,8 @@ body.locked main{display:none}
 .calday:hover{box-shadow:var(--scale-hover-shadow);border-color:var(--scale-hover-border-color)}
 .calday.on{color:var(--scale-on-color);background:var(--scale-on-bg);box-shadow:var(--scale-on-shadow);border-color:var(--scale-on-border-color);text-shadow:var(--scale-on-text-shadow)}
 .calday.out{opacity:.38}
+.calday.we::before{content:'';position:absolute;inset:0;border-radius:inherit;background:var(--weekend-bg);pointer-events:none}
+.calweek .we{color:var(--accent)}
 .calday.today .calnum{box-shadow:0 0 0 1.5px var(--focus);border-radius:999px}
 .calnum{min-width:26px;padding:0 4px;line-height:1.45;font-size:.92rem}
 .calmarks{display:flex;gap:3px;align-items:center;height:12px}

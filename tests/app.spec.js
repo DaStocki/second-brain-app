@@ -232,6 +232,8 @@ test('Verlauf: zehn Diagramme, Antippen zeigt den Tageswert', async ({ page }) =
   await open(page);
   await page.click('nav button[data-tab=verlauf]');
   await expect(page.locator('.chart')).toHaveCount(10);
+  // 30 days up to Sun 11.10.: weekends 12./13.09. … 10./11.10. give five shaded bands per chart
+  await expect(page.locator('.chart').first().locator('rect.we')).toHaveCount(5);
   const box = await page.locator('.chart svg').first().boundingBox();
   await page.mouse.click(box.x + box.width * 0.5, box.y + box.height / 2);
   await expect(page.locator('.ccap').first()).toHaveText(/\d{2}\.\d{2}\.: /);
