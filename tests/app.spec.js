@@ -380,3 +380,11 @@ test('Check-in: ohne Auffälligkeiten sagt die Bemerkung das auch', async ({ pag
   await page.click('#ci-step button.primary:text("Speichern")');
   await expect(page.locator('#ci-step .remarks li')).toHaveText(['Nichts Auffälliges – alle Werte liegen nahe am Schnitt der letzten 7 Tage.']);
 });
+
+test('Fehlermeldung: abgelaufener Token wird verständlich erklärt, der Entwurf bleibt', async ({ page }) => {
+  await open(page, { github: { token: 'neu' }, storage: { 'ci-draft': JSON.stringify({ date: '2026-10-11', kurz: true, step: 4, answers: { stimmung: 6 } }) } });
+  await page.click('nav button[data-tab=checkin]');
+  await page.click('#ci-step button.primary:text("Speichern")');
+  await expect(page.locator('#msg')).toContainText('Token abgelaufen oder ungültig (GitHub 401) – unter ⚙︎ einen neuen Token eintragen.');
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('ci-draft')).answers.stimmung)).toBe(6);
+});

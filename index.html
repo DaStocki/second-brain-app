@@ -215,6 +215,16 @@ const berlin = () => {
 // ---------- GitHub ----------
 const b64e = s => { const b = new TextEncoder().encode(s); let t=''; b.forEach(c=>t+=String.fromCharCode(c)); return btoa(t) };
 const b64d = s => { const t = atob(s.replace(/\n/g,'')); return new TextDecoder().decode(Uint8Array.from(t, c=>c.charCodeAt(0))) };
+// Error text the user can act on; the status code stays in brackets for reference.
+function ghErrorText(r){
+  const s = r.status;
+  if (s === 401) return 'Token abgelaufen oder ungültig (GitHub 401) – unter ⚙︎ einen neuen Token eintragen.';
+  if (s === 403 && r.headers.get('x-ratelimit-remaining') === '0') return 'GitHub-Limit erreicht (403) – in ein paar Minuten erneut versuchen.';
+  if (s === 403) return 'Token hat keine Berechtigung (GitHub 403) – unter ⚙︎ prüfen: Zugriff aufs Repo, Contents „Read and write“.';
+  if (s === 404) return 'Repo nicht gefunden (GitHub 404) – unter ⚙︎ den Repo-Namen prüfen oder ob der Token Zugriff darauf hat.';
+  if (s >= 500) return `GitHub hat gerade Probleme (${s}) – später erneut versuchen.`;
+  return `GitHub ${s}`;
+}
 async function gh(path, opts={}){
   const c = cfg();
   if (!c.token) throw new Error('Kein Token gesetzt (⚙︎).');
@@ -223,7 +233,7 @@ async function gh(path, opts={}){
     r = await fetch(`https://api.github.com/repos/${c.repo}${path ? "/" + path : ""}`, {...opts, headers:{Authorization:`Bearer ${c.token}`,Accept:'application/vnd.github+json',...(opts.headers||{})}});
   } catch(e){ const err = new Error(`api.github.com nicht erreichbar (offline?): ${e.message}`); err.offline = true; throw err }
   if (r.status === 404 && opts.allow404) return null;
-  if (!r.ok) { const e = new Error(`GitHub ${r.status}`); e.status = r.status; e.body = await r.text().catch(()=>''); throw e }
+  if (!r.ok) { const e = new Error(ghErrorText(r)); e.status = r.status; e.body = await r.text().catch(()=>''); throw e }
   return r.json();
 }
 // Read file, apply transform(text|null) -> text, commit; retry on conflict (409/422), never force.
