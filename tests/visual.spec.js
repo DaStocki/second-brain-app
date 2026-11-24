@@ -42,10 +42,10 @@ for (const theme of THEMES) {
       await expect(page).toHaveScreenshot(`${theme}-checkin.png`, shot);
     });
     test('checkin-text-und-zusammenfassung', async ({ page }) => {
-      await start(page, theme, { 'ci-draft': JSON.stringify({ date: '2026-10-11', kurz: false, step: 9, answers: { stimmung: 6, stress: 3 } }) });
+      await start(page, theme, { 'ci-draft': JSON.stringify({ date: '2026-10-11', kurz: false, step: 8, answers: { stimmung: 6, stress: 3 } }) });
       await page.click('nav button[data-tab=checkin]'); await page.fill('#ci-step textarea', 'Ein Testtag'); await settle(page);
       await expect(page).toHaveScreenshot(`${theme}-checkin-text.png`, shot);
-      for (let i = 0; i < 4; i++) await page.click('#ci-step button.primary');
+      for (let i = 0; i < 2; i++) await page.click('#ci-step button.primary');
       await page.mouse.move(0, 0); await settle(page);
       await expect(page).toHaveScreenshot(`${theme}-checkin-summary.png`, { ...shot, fullPage: true });
     });
@@ -76,7 +76,7 @@ for (const theme of THEMES) {
     });
     test('checkin-bemerkung', async ({ page }) => {
       const answers = { stimmung: 6, stress: 3, energie: 5, schlaf: 8, beschwerden: 4, soziale_batterie: 6, reizueberflutung: 4, verbundenheit: 7 };
-      await start(page, theme, { 'ci-draft': JSON.stringify({ date: '2026-10-11', kurz: false, step: 13, answers }) });
+      await start(page, theme, { 'ci-draft': JSON.stringify({ date: '2026-10-11', kurz: false, step: 10, answers }) });
       await page.click('nav button[data-tab=checkin]'); await page.click('#ci-step button.primary:text("Speichern")');
       await expect(page.locator('#ci-step .remarks li').first()).toBeVisible(); await settle(page);
       await expect(page).toHaveScreenshot(`${theme}-checkin-bemerkung.png`, shot);
